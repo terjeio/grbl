@@ -125,7 +125,8 @@
 // Define global system variables
 typedef struct {
   uint8_t state;               // Tracks the current system state of Grbl.
-  uint8_t abort;               // System abort flag. Forces exit back to main loop for reset.             
+  uint8_t abort;               // System abort flag. Forces exit back to main loop for reset.
+  bool exit;				   // System exit flag. Used in combination with abort to terminate main loop.
   uint8_t suspend;             // System suspend bitflag variable that manages holds, cancels, and safety door.
   uint8_t soft_limit;          // Tracks soft limit errors for the state machine. (boolean)
   uint8_t step_control;        // Governs the step segment generator depending on system state.
@@ -161,11 +162,8 @@ extern volatile uint8_t sys_rt_exec_accessory_override; // Global realtime execu
   extern volatile uint8_t sys_rt_exec_debug;
 #endif
 
-// Initialize the serial protocol
-void system_init();
-
 // Returns bitfield of control pin states, organized by CONTROL_PIN_INDEX. (1=triggered, 0=not triggered).
-uint8_t system_control_get_state();
+#define system_control_get_state() hal.system_control_get_state()
 
 // Returns if safety door is open or closed, based on pin state.
 uint8_t system_check_safety_door_ajar();
@@ -204,5 +202,6 @@ void system_set_exec_accessory_override_flag(uint8_t mask);
 void system_clear_exec_motion_overrides();
 void system_clear_exec_accessory_overrides();
 
+void control_interrupt_handler (uint8_t pin);
 
 #endif

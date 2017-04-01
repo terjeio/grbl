@@ -20,49 +20,13 @@
 
 #include "grbl.h"
 
-
-void system_init()
-{
-  CONTROL_DDR &= ~(CONTROL_MASK); // Configure as input pins
-  #ifdef DISABLE_CONTROL_PIN_PULL_UP
-    CONTROL_PORT &= ~(CONTROL_MASK); // Normal low operation. Requires external pull-down.
-  #else
-    CONTROL_PORT |= CONTROL_MASK;   // Enable internal pull-up resistors. Normal high operation.
-  #endif
-  CONTROL_PCMSK |= CONTROL_MASK;  // Enable specific pins of the Pin Change Interrupt
-  PCICR |= (1 << CONTROL_INT);   // Enable Pin Change Interrupt
-}
-
-
-// Returns control pin state as a uint8 bitfield. Each bit indicates the input pin state, where
-// triggered is 1 and not triggered is 0. Invert mask is applied. Bitfield organization is
-// defined by the CONTROL_PIN_INDEX in the header file.
-uint8_t system_control_get_state()
-{
-  uint8_t control_state = 0;
-  uint8_t pin = (CONTROL_PIN & CONTROL_MASK);
-  #ifdef INVERT_CONTROL_PIN_MASK
-    pin ^= INVERT_CONTROL_PIN_MASK;
-  #endif
-  if (pin) {
-    #ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
-      if (bit_isfalse(pin,(1<<CONTROL_SAFETY_DOOR_BIT))) { control_state |= CONTROL_PIN_INDEX_SAFETY_DOOR; }
-    #endif
-    if (bit_isfalse(pin,(1<<CONTROL_RESET_BIT))) { control_state |= CONTROL_PIN_INDEX_RESET; }
-    if (bit_isfalse(pin,(1<<CONTROL_FEED_HOLD_BIT))) { control_state |= CONTROL_PIN_INDEX_FEED_HOLD; }
-    if (bit_isfalse(pin,(1<<CONTROL_CYCLE_START_BIT))) { control_state |= CONTROL_PIN_INDEX_CYCLE_START; }
-  }
-  return(control_state);
-}
-
-
 // Pin change interrupt for pin-out commands, i.e. cycle start, feed hold, and reset. Sets
 // only the realtime command execute variable to have the main program execute these when
 // its ready. This works exactly like the character-based realtime commands when picked off
 // directly from the incoming serial data stream.
-ISR(CONTROL_INT_vect)
+void control_interrupt_handler (uint8_t pin)
 {
-  uint8_t pin = system_control_get_state();
+
   if (pin) {
     if (bit_istrue(pin,CONTROL_PIN_INDEX_RESET)) {
       mc_reset();
@@ -84,7 +48,7 @@ ISR(CONTROL_INT_vect)
 uint8_t system_check_safety_door_ajar()
 {
   #ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
-    return(system_control_get_state() & CONTROL_PIN_INDEX_SAFETY_DOOR);
+    return(hal.system_control_get_state() & CONTROL_PIN_INDEX_SAFETY_DOOR);
   #else
     return(false); // Input pin not enabled, so just return that it's closed.
   #endif
@@ -351,57 +315,34 @@ uint8_t system_check_travel_limits(float *target)
 
 // Special handlers for setting and clearing Grbl's real-time execution flags.
 void system_set_exec_state_flag(uint8_t mask) {
-  uint8_t sreg = SREG;
-  cli();
-  sys_rt_exec_state |= (mask);
-  SREG = sreg;
+	hal.set_bits_atomic(&sys_rt_exec_state, mask);
 }
 
 void system_clear_exec_state_flag(uint8_t mask) {
-  uint8_t sreg = SREG;
-  cli();
-  sys_rt_exec_state &= ~(mask);
-  SREG = sreg;
+	hal.clear_bits_atomic(&sys_rt_exec_state, mask);
 }
 
 void system_set_exec_alarm(uint8_t code) {
-  uint8_t sreg = SREG;
-  cli();
-  sys_rt_exec_alarm = code;
-  SREG = sreg;
+	// clear first?
+	hal.set_bits_atomic(&sys_rt_exec_alarm, code);
 }
 
 void system_clear_exec_alarm() {
-  uint8_t sreg = SREG;
-  cli();
-  sys_rt_exec_alarm = 0;
-  SREG = sreg;
+	hal.clear_bits_atomic(&sys_rt_exec_alarm, 0xFF);
 }
 
 void system_set_exec_motion_override_flag(uint8_t mask) {
-  uint8_t sreg = SREG;
-  cli();
-  sys_rt_exec_motion_override |= (mask);
-  SREG = sreg;
+	hal.set_bits_atomic(&sys_rt_exec_motion_override, mask);
 }
 
 void system_set_exec_accessory_override_flag(uint8_t mask) {
-  uint8_t sreg = SREG;
-  cli();
-  sys_rt_exec_accessory_override |= (mask);
-  SREG = sreg;
+	hal.set_bits_atomic(&sys_rt_exec_accessory_override, mask);
 }
 
 void system_clear_exec_motion_overrides() {
-  uint8_t sreg = SREG;
-  cli();
-  sys_rt_exec_motion_override = 0;
-  SREG = sreg;
+	hal.clear_bits_atomic(&sys_rt_exec_motion_override, 0xFF);
 }
 
 void system_clear_exec_accessory_overrides() {
-  uint8_t sreg = SREG;
-  cli();
-  sys_rt_exec_accessory_override = 0;
-  SREG = sreg;
+	hal.clear_bits_atomic(&sys_rt_exec_accessory_override, 0xFF);
 }

@@ -139,7 +139,7 @@ static void planner_recalculate()
   plan_block_t *current = &block_buffer[block_index];
 
   // Calculate maximum entry speed for last block in buffer, where the exit speed is always zero.
-  current->entry_speed_sqr = min( current->max_entry_speed_sqr, 2*current->acceleration*current->millimeters);
+  current->entry_speed_sqr = min( current->max_entry_speed_sqr, 2.0f*current->acceleration*current->millimeters);
 
   block_index = plan_prev_block_index(block_index);
   if (block_index == block_buffer_planned) { // Only two plannable blocks in buffer. Reverse pass complete.
@@ -156,7 +156,7 @@ static void planner_recalculate()
 
       // Compute maximum entry speed decelerating over the current block from its exit speed.
       if (current->entry_speed_sqr != current->max_entry_speed_sqr) {
-        entry_speed_sqr = next->entry_speed_sqr + 2*current->acceleration*current->millimeters;
+        entry_speed_sqr = next->entry_speed_sqr + 2.0f*current->acceleration*current->millimeters;
         if (entry_speed_sqr < current->max_entry_speed_sqr) {
           current->entry_speed_sqr = entry_speed_sqr;
         } else {
@@ -178,7 +178,7 @@ static void planner_recalculate()
     // pointer forward, since everything before this is all optimal. In other words, nothing
     // can improve the plan from the buffer tail to the planned pointer by logic.
     if (current->entry_speed_sqr < next->entry_speed_sqr) {
-      entry_speed_sqr = current->entry_speed_sqr + 2*current->acceleration*current->millimeters;
+      entry_speed_sqr = current->entry_speed_sqr + 2.0f*current->acceleration*current->millimeters;
       // If true, current block is full-acceleration and we can move the planned pointer forward.
       if (entry_speed_sqr < next->entry_speed_sqr) {
         next->entry_speed_sqr = entry_speed_sqr; // Always <= max_entry_speed_sqr. Backward pass sets this.
@@ -241,7 +241,7 @@ plan_block_t *plan_get_current_block()
 float plan_get_exec_block_exit_speed_sqr()
 {
   uint8_t block_index = plan_next_block_index(block_buffer_tail);
-  if (block_index == block_buffer_head) { return( 0.0 ); }
+  if (block_index == block_buffer_head) { return( 0.0f ); }
   return( block_buffer[block_index].entry_speed_sqr );
 }
 
@@ -259,9 +259,9 @@ uint8_t plan_check_full_buffer()
 float plan_compute_profile_nominal_speed(plan_block_t *block)
 {
   float nominal_speed = block->programmed_rate;
-  if (block->condition & PL_COND_FLAG_RAPID_MOTION) { nominal_speed *= (0.01*sys.r_override); }
+  if (block->condition & PL_COND_FLAG_RAPID_MOTION) { nominal_speed *= (0.01f*sys.r_override); }
   else {
-    if (!(block->condition & PL_COND_FLAG_NO_FEED_OVERRIDE)) { nominal_speed *= (0.01*sys.f_override); }
+    if (!(block->condition & PL_COND_FLAG_NO_FEED_OVERRIDE)) { nominal_speed *= (0.01f*sys.f_override); }
     if (nominal_speed > block->rapid_rate) { nominal_speed = block->rapid_rate; }
   }
   if (nominal_speed > MINIMUM_FEED_RATE) { return(nominal_speed); }
@@ -331,13 +331,13 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
   uint8_t idx;
 
   // Copy position data based on type of motion being planned.
-  if (block->condition & PL_COND_FLAG_SYSTEM_MOTION) { 
+  if (block->condition & PL_COND_FLAG_SYSTEM_MOTION) {
     #ifdef COREXY
       position_steps[X_AXIS] = system_convert_corexy_to_x_axis_steps(sys_position);
       position_steps[Y_AXIS] = system_convert_corexy_to_y_axis_steps(sys_position);
       position_steps[Z_AXIS] = sys_position[Z_AXIS];
     #else
-      memcpy(position_steps, sys_position, sizeof(sys_position)); 
+      memcpy(position_steps, sys_position, sizeof(sys_position));
     #endif
   } else { memcpy(position_steps, pl.position, sizeof(pl.position)); }
 
@@ -374,7 +374,7 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
     unit_vec[idx] = delta_mm; // Store unit vector numerator
 
     // Set direction bits. Bit enabled always means direction is negative.
-    if (delta_mm < 0.0 ) { block->direction_bits |= get_direction_pin_mask(idx); }
+    if (delta_mm < 0.0f ) { block->direction_bits |= get_direction_pin_mask(idx); }
   }
 
   // Bail if this is a zero-length block. Highly unlikely to occur.
@@ -390,7 +390,7 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
 
   // Store programmed rate.
   if (block->condition & PL_COND_FLAG_RAPID_MOTION) { block->programmed_rate = block->rapid_rate; }
-  else { 
+  else {
     block->programmed_rate = pl_data->feed_rate;
     if (block->condition & PL_COND_FLAG_INVERSE_TIME) { block->programmed_rate *= block->millimeters; }
   }
@@ -400,8 +400,8 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
 
     // Initialize block entry speed as zero. Assume it will be starting from rest. Planner will correct this later.
     // If system motion, the system motion block always is assumed to start from rest and end at a complete stop.
-    block->entry_speed_sqr = 0.0;
-    block->max_junction_speed_sqr = 0.0; // Starting from rest. Enforce start from zero velocity.
+    block->entry_speed_sqr = 0.0f;
+    block->max_junction_speed_sqr = 0.0f; // Starting from rest. Enforce start from zero velocity.
 
   } else {
     // Compute maximum allowable entry speed at junction by centripetal acceleration approximation.
@@ -427,26 +427,26 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
     // change the overall maximum entry speed conditions of all blocks.
 
     float junction_unit_vec[N_AXIS];
-    float junction_cos_theta = 0.0;
+    float junction_cos_theta = 0.0f;
     for (idx=0; idx<N_AXIS; idx++) {
       junction_cos_theta -= pl.previous_unit_vec[idx]*unit_vec[idx];
       junction_unit_vec[idx] = unit_vec[idx]-pl.previous_unit_vec[idx];
     }
 
     // NOTE: Computed without any expensive trig, sin() or acos(), by trig half angle identity of cos(theta).
-    if (junction_cos_theta > 0.999999) {
+    if (junction_cos_theta > 0.999999f) {
       //  For a 0 degree acute junction, just set minimum junction speed.
       block->max_junction_speed_sqr = MINIMUM_JUNCTION_SPEED*MINIMUM_JUNCTION_SPEED;
     } else {
-      if (junction_cos_theta < -0.999999) {
+      if (junction_cos_theta < -0.999999f) {
         // Junction is a straight line or 180 degrees. Junction speed is infinite.
         block->max_junction_speed_sqr = SOME_LARGE_VALUE;
       } else {
         convert_delta_vector_to_unit_vector(junction_unit_vec);
         float junction_acceleration = limit_value_by_axis_maximum(settings.acceleration, junction_unit_vec);
-        float sin_theta_d2 = sqrt(0.5*(1.0-junction_cos_theta)); // Trig half angle identity. Always positive.
+        float sin_theta_d2 = sqrt(0.5f*(1.0f-junction_cos_theta)); // Trig half angle identity. Always positive.
         block->max_junction_speed_sqr = max( MINIMUM_JUNCTION_SPEED*MINIMUM_JUNCTION_SPEED,
-                       (junction_acceleration * settings.junction_deviation * sin_theta_d2)/(1.0-sin_theta_d2) );
+                       (junction_acceleration * settings.junction_deviation * sin_theta_d2)/(1.0f-sin_theta_d2) );
       }
     }
   }

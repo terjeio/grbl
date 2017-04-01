@@ -2,7 +2,7 @@
   spindle_control.h - spindle control methods
   Part of Grbl
 
-  Copyright (c) 2012-2016 Sungeun K. Jeon for Gnea Research LLC
+  Copyright (c) 2012-2015 Sungeun K. Jeon
   Copyright (c) 2009-2011 Simen Svale Skogsrud
 
   Grbl is free software: you can redistribute it and/or modify
@@ -29,12 +29,13 @@
 #define SPINDLE_STATE_CW       bit(0)
 #define SPINDLE_STATE_CCW      bit(1)
 
+// this is defined in cpu_map.h which no longer used
+#define SPINDLE_PWM_OFF_VALUE     0
 
-// Initializes spindle pins and hardware PWM, if enabled.
-void spindle_init();
-
-// Returns current spindle output state. Overrides may alter it from programmed states.
-uint8_t spindle_get_state();
+#define spindle_get_state() hal.spindle_get_state()
+//#define spindle_stop() hal.spindle_set_state(0, 0.0f)
+#define spindle_set_speed(s) hal.spindle_set_speed(s)
+#define spindle_compute_pwm_value(s) hal.spindle_compute_pwm_value(s)
 
 // Called by g-code parser when setting spindle state and requires a buffer sync.
 // Immediately sets spindle running state with direction and spindle rpm via PWM, if enabled.
@@ -45,17 +46,10 @@ uint8_t spindle_get_state();
   void spindle_sync(uint8_t state, float rpm);
 
   // Sets spindle running state with direction, enable, and spindle PWM.
-  void spindle_set_state(uint8_t state, float rpm); 
-  
-  // Sets spindle PWM quickly for stepper ISR. Also called by spindle_set_state().
-  // NOTE: 328p PWM register is 8-bit.
-  void spindle_set_speed(uint8_t pwm_value);
-  
-  // Computes 328p-specific PWM register value for the given RPM for quick updating.
-  uint8_t spindle_compute_pwm_value(float rpm);
-  
+  void spindle_set_state(uint8_t state, float rpm);
+
 #else
-  
+
   // Called by g-code parser when setting spindle state and requires a buffer sync.
   #define spindle_sync(state, rpm) _spindle_sync(state)
   void _spindle_sync(uint8_t state);
@@ -66,8 +60,7 @@ uint8_t spindle_get_state();
 
 #endif
 
-// Stop and start spindle routines. Called by all spindle routines and stepper ISR.
-void spindle_stop();
-
+  // Stop and start spindle routines. Called by all spindle routines and stepper ISR.
+  void spindle_stop();
 
 #endif

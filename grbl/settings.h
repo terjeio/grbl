@@ -24,6 +24,9 @@
 
 #include "grbl.h"
 
+#define get_step_pin_mask(a) (1<<a)
+#define get_direction_pin_mask(a) (1<<a)
+#define get_limit_pin_mask(a) (1<<a)
 
 // Version of the EEPROM data. Will be used to migrate existing data from older versions of Grbl
 // when firmware is upgraded. Always stored in byte 0 of eeprom
@@ -130,15 +133,5 @@ void settings_write_coord_data(uint8_t coord_select, float *coord_data);
 
 // Reads selected coordinate data from EEPROM
 uint8_t settings_read_coord_data(uint8_t coord_select, float *coord_data);
-
-// Returns the step pin mask according to Grbl's internal axis numbering
-uint8_t get_step_pin_mask(uint8_t i);
-
-// Returns the direction pin mask according to Grbl's internal axis numbering
-uint8_t get_direction_pin_mask(uint8_t i);
-
-// Returns the limit pin mask according to Grbl's internal axis numbering
-uint8_t get_limit_pin_mask(uint8_t i);
-
 
 #endif

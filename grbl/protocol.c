@@ -26,16 +26,28 @@
 #define LINE_FLAG_COMMENT_PARENTHESES bit(1)
 #define LINE_FLAG_COMMENT_SEMICOLON bit(2)
 
-
+static uint8_t char_counter = 0;
 static char line[LINE_BUFFER_SIZE]; // Line to be executed. Zero-terminated.
+static char xcommand[LINE_BUFFER_SIZE];
 
 static void protocol_exec_rt_suspend();
 
+// add gcode to execute not originating from serial stream
+bool protocol_enqueue_gcode (char *gcode)
+{
+
+	bool ok = xcommand[0] == '\0' && (sys.state == STATE_IDLE || sys.state == STATE_JOG) && bit_isfalse(sys_rt_exec_state, EXEC_MOTION_CANCEL);
+
+	if(ok)
+		strcpy(xcommand, gcode);
+
+	return ok;
+}
 
 /*
   GRBL PRIMARY LOOP:
 */
-void protocol_main_loop()
+bool protocol_main_loop()
 {
   // Perform some machine checks to make sure everything is good to go.
   #ifdef CHECK_LIMITS_AT_INIT
@@ -68,18 +80,26 @@ void protocol_main_loop()
   // This is also where Grbl idles while waiting for something to do.
   // ---------------------------------------------------------------------------------
 
-  uint8_t line_flags = 0;
-  uint8_t char_counter = 0;
-  uint8_t c;
+  uint8_t line_flags = 0, rstatus = 0;
+  int32_t c;
+
+  xcommand[0] = '\0';
+
   for (;;) {
 
     // Process one line of incoming serial data, as the data becomes available. Performs an
     // initial filtering by removing spaces and comments and capitalizing all letters.
     while((c = serial_read()) != SERIAL_NO_DATA) {
-      if ((c == '\n') || (c == '\r')) { // End of line reached
+
+      if(c == CMD_RESET) {
+    	  char_counter = 0;
+    	  xcommand[0] = '\0';
+          if (sys.state & STATE_JOG)// Block all other states from invoking motion cancel.
+              system_set_exec_state_flag(EXEC_MOTION_CANCEL);
+      } else if ((c == '\n') || (c == '\r')) { // End of line reached
 
         protocol_execute_realtime(); // Runtime command check point.
-        if (sys.abort) { return; } // Bail to calling function upon system abort
+        if (sys.abort) { return !sys.exit; } // Bail to calling function upon system abort
 
         line[char_counter] = 0; // Set string termination character.
         #ifdef REPORT_ECHO_LINE_RECEIVED
@@ -87,22 +107,18 @@ void protocol_main_loop()
         #endif
 
         // Direct and execute one line of formatted input, and report status of execution.
-        if (line_flags & LINE_FLAG_OVERFLOW) {
-          // Report line overflow error.
-          report_status_message(STATUS_OVERFLOW);
-        } else if (line[0] == 0) {
-          // Empty or comment line. For syncing purposes.
-          report_status_message(STATUS_OK);
-        } else if (line[0] == '$') {
-          // Grbl '$' system command
-          report_status_message(system_execute_line(line));
-        } else if (sys.state & (STATE_ALARM | STATE_JOG)) {
-          // Everything else is gcode. Block if in alarm or jog mode.
-          report_status_message(STATUS_SYSTEM_GC_LOCK);
-        } else {
-          // Parse and execute g-code block.
-          report_status_message(gc_execute_line(line));
-        }
+        if (line_flags & LINE_FLAG_OVERFLOW) // Report line overflow error.
+            rstatus = STATUS_OVERFLOW;
+        else if (line[0] == 0 || char_counter == 0) // Empty or comment line. For syncing purposes.
+            rstatus = STATUS_OK;
+        else if (line[0] == '$') // Grbl '$' system command
+            rstatus = system_execute_line(line);
+        else if (sys.state & (STATE_ALARM | STATE_JOG)) // Everything else is gcode. Block if in alarm or jog mode.
+            rstatus = STATUS_SYSTEM_GC_LOCK;
+        else  // Parse and execute g-code block.
+            rstatus = gc_execute_line(line);
+
+        report_status_message(rstatus);
 
         // Reset tracking data for next line.
         line_flags = 0;
@@ -141,15 +157,26 @@ void protocol_main_loop()
           } else if (char_counter >= (LINE_BUFFER_SIZE-1)) {
             // Detect line buffer overflow and set flag.
             line_flags |= LINE_FLAG_OVERFLOW;
-          } else if (c >= 'a' && c <= 'z') { // Upcase lowercase
-            line[char_counter++] = c-'a'+'A';
-          } else {
-            line[char_counter++] = c;
-          }
+          } else
+            line[char_counter++] = (c >= 'a' && c <= 'z') ? c & 0x5F : c; // Upcase lowercase
+
         }
 
       }
     }
+
+    if(xcommand[0] != '\0') {
+
+    	if (xcommand[0] == '$') // Grbl '$' system command
+    		system_execute_line(xcommand);
+	  	else if (sys.state & (STATE_ALARM | STATE_JOG)) // Everything else is gcode. Block if in alarm or jog mode.
+	  		report_status_message(STATUS_SYSTEM_GC_LOCK);
+	  	else // Parse and execute g-code block.
+	  		gc_execute_line(xcommand);
+
+    	xcommand[0] = '\0';
+
+  	}
 
     // If there are no more characters in the serial read buffer to be processed and executed,
     // this indicates that g-code streaming has either filled the planner buffer or has
@@ -157,10 +184,10 @@ void protocol_main_loop()
     protocol_auto_cycle_start();
 
     protocol_execute_realtime();  // Runtime command check point.
-    if (sys.abort) { return; } // Bail to main() program loop to reset system.
+    if (sys.abort) { return !sys.exit; } // Bail to main() program loop to reset system.
   }
 
-  return; /* Never reached */
+//  return; /* Never reached */
 }
 
 
@@ -205,6 +232,10 @@ void protocol_auto_cycle_start()
 void protocol_execute_realtime()
 {
   protocol_exec_rt_system();
+
+  if(hal.execute_realtime)
+	  hal.execute_realtime(sys.state);
+
   if (sys.suspend) { protocol_exec_rt_suspend(); }
 }
 
@@ -258,14 +289,14 @@ void protocol_exec_rt_system()
 
       // State check for allowable states for hold methods.
       if (!(sys.state & (STATE_ALARM | STATE_CHECK_MODE))) {
-      
+
         // If in CYCLE or JOG states, immediately initiate a motion HOLD.
         if (sys.state & (STATE_CYCLE | STATE_JOG)) {
           if (!(sys.suspend & (SUSPEND_MOTION_CANCEL | SUSPEND_JOG_CANCEL))) { // Block, if already holding.
             st_update_plan_block_parameters(); // Notify stepper module to recompute for hold deceleration.
             sys.step_control = STEP_CONTROL_EXECUTE_HOLD; // Initiate suspend state with active flag.
             if (sys.state == STATE_JOG) { // Jog cancelled upon any hold event, except for sleeping.
-              if (!(rt_exec & EXEC_SLEEP)) { sys.suspend |= SUSPEND_JOG_CANCEL; } 
+              if (!(rt_exec & EXEC_SLEEP)) { sys.suspend |= SUSPEND_JOG_CANCEL; }
             }
           }
         }
@@ -274,7 +305,7 @@ void protocol_exec_rt_system()
 
         // Execute and flag a motion cancel with deceleration and return to idle. Used primarily by probing cycle
         // to halt and cancel the remainder of the motion.
-        if (rt_exec & EXEC_MOTION_CANCEL) {
+        if ((rt_exec & EXEC_MOTION_CANCEL) && sys.state != STATE_IDLE) {
           // MOTION_CANCEL only occurs during a CYCLE, but a HOLD and SAFETY_DOOR may been initiated beforehand
           // to hold the CYCLE. Motion cancel is valid for a single planner block motion only, while jog cancel
           // will handle and clear multiple planner block motions.
@@ -316,12 +347,12 @@ void protocol_exec_rt_system()
           // are executed if the door switch closes and the state returns to HOLD.
           sys.suspend |= SUSPEND_SAFETY_DOOR_AJAR;
         }
-        
+
       }
 
       if (rt_exec & EXEC_SLEEP) {
         if (sys.state == STATE_ALARM) { sys.suspend |= (SUSPEND_RETRACT_COMPLETE|SUSPEND_HOLD_COMPLETE); }
-        sys.state = STATE_SLEEP; 
+        sys.state = STATE_SLEEP;
       }
 
       system_clear_exec_state_flag((EXEC_MOTION_CANCEL | EXEC_FEED_HOLD | EXEC_SAFETY_DOOR | EXEC_SLEEP));
@@ -395,6 +426,8 @@ void protocol_exec_rt_system()
           sys.state = STATE_SAFETY_DOOR;
         } else {
           sys.suspend = SUSPEND_DISABLE;
+          if(sys.state == STATE_JOG)
+        	  system_clear_exec_state_flag(EXEC_MOTION_CANCEL);
           sys.state = STATE_IDLE;
         }
       }
@@ -531,7 +564,7 @@ static void protocol_exec_rt_suspend()
       restore_spindle_speed = block->spindle_speed;
     }
     #ifdef DISABLE_LASER_DURING_HOLD
-      if (bit_istrue(settings.flags,BITFLAG_LASER_MODE)) { 
+      if (bit_istrue(settings.flags,BITFLAG_LASER_MODE)) {
         system_set_exec_accessory_override_flag(EXEC_SPINDLE_OVR_STOP);
       }
     #endif
@@ -547,10 +580,10 @@ static void protocol_exec_rt_suspend()
     // Block until initial hold is complete and the machine has stopped motion.
     if (sys.suspend & SUSPEND_HOLD_COMPLETE) {
 
-      // Parking manager. Handles de/re-energizing, switch state checks, and parking motions for 
+      // Parking manager. Handles de/re-energizing, switch state checks, and parking motions for
       // the safety door and sleep states.
       if (sys.state & (STATE_SAFETY_DOOR | STATE_SLEEP)) {
-      
+
         // Handles retraction motions and de-energizing.
         if (bit_isfalse(sys.suspend,SUSPEND_RETRACT_COMPLETE)) {
 
@@ -559,11 +592,11 @@ static void protocol_exec_rt_suspend()
 
           #ifndef PARKING_ENABLE
 
-            spindle_set_state(SPINDLE_DISABLE,0.0); // De-energize
+            spindle_set_state(SPINDLE_DISABLE,0.0f); // De-energize
             coolant_set_state(COOLANT_DISABLE);     // De-energize
 
           #else
-					
+
             // Get current position and store restore location and spindle retract waypoint.
             system_convert_array_steps_to_mpos(parking_target,sys_position);
             if (bit_isfalse(sys.suspend,SUSPEND_RESTART_RETRACT)) {
@@ -624,17 +657,17 @@ static void protocol_exec_rt_suspend()
 
         } else {
 
-          
+
           if (sys.state == STATE_SLEEP) {
             report_feedback_message(MESSAGE_SLEEP_MODE);
             // Spindle and coolant should already be stopped, but do it again just to be sure.
-            spindle_set_state(SPINDLE_DISABLE,0.0); // De-energize
+            spindle_set_state(SPINDLE_DISABLE,0.0f); // De-energize
             coolant_set_state(COOLANT_DISABLE); // De-energize
             st_go_idle(); // Disable steppers
             while (!(sys.abort)) { protocol_exec_rt_system(); } // Do nothing until reset.
             return; // Abort received. Return to re-initialize.
-          }    
-          
+          }
+
           // Allows resuming from parking/safety door. Actively checks if safety door is closed and ready to resume.
           if (sys.state == STATE_SAFETY_DOOR) {
             if (!(system_check_safety_door_ajar())) {
@@ -723,7 +756,7 @@ static void protocol_exec_rt_suspend()
           // Handles beginning of spindle stop
           if (sys.spindle_stop_ovr & SPINDLE_STOP_OVR_INITIATE) {
             if (gc_state.modal.spindle != SPINDLE_DISABLE) {
-              spindle_set_state(SPINDLE_DISABLE,0.0); // De-energize
+              spindle_set_state(SPINDLE_DISABLE,0.0f); // De-energize
               sys.spindle_stop_ovr = SPINDLE_STOP_OVR_ENABLED; // Set stop override state to enabled, if de-energized.
             } else {
               sys.spindle_stop_ovr = SPINDLE_STOP_OVR_DISABLED; // Clear stop override state
@@ -759,4 +792,44 @@ static void protocol_exec_rt_suspend()
     protocol_exec_rt_system();
 
   }
+}
+
+bool protocol_process_realtime (int32_t data) {
+
+	bool add = true;
+
+	switch (data) {
+	    case CMD_RESET:         mc_reset(); add = false; break; // Call motion control reset routine.
+	    case CMD_EXIT:			mc_reset(); sys.exit = true; add = false; break; // Call motion control reset routine.
+	    case CMD_STATUS_REPORT: system_set_exec_state_flag(EXEC_STATUS_REPORT); add = false; break; // Set as true
+	    case CMD_CYCLE_START:   system_set_exec_state_flag(EXEC_CYCLE_START); add = false; break; // Set as true
+	    case CMD_FEED_HOLD:     system_set_exec_state_flag(EXEC_FEED_HOLD); add = false; break; // Set as true
+        case CMD_SAFETY_DOOR:   system_set_exec_state_flag(EXEC_SAFETY_DOOR); add = false; break; // Set as true
+        case CMD_JOG_CANCEL:
+          char_counter = 0;
+          hal.serial_cancel_read_buffer();
+        break;
+        #ifdef DEBUG
+        case CMD_DEBUG_REPORT: {uint8_t sreg = SREG; cli(); bit_true(sys_rt_exec_debug,EXEC_DEBUG_REPORT); SREG = sreg;} break;
+        #endif
+        case CMD_FEED_OVR_RESET: system_set_exec_motion_override_flag(EXEC_FEED_OVR_RESET); break;
+        case CMD_FEED_OVR_COARSE_PLUS: system_set_exec_motion_override_flag(EXEC_FEED_OVR_COARSE_PLUS); break;
+        case CMD_FEED_OVR_COARSE_MINUS: system_set_exec_motion_override_flag(EXEC_FEED_OVR_COARSE_MINUS); break;
+        case CMD_FEED_OVR_FINE_PLUS: system_set_exec_motion_override_flag(EXEC_FEED_OVR_FINE_PLUS); break;
+        case CMD_FEED_OVR_FINE_MINUS: system_set_exec_motion_override_flag(EXEC_FEED_OVR_FINE_MINUS); break;
+        case CMD_RAPID_OVR_RESET: system_set_exec_motion_override_flag(EXEC_RAPID_OVR_RESET); break;
+        case CMD_RAPID_OVR_MEDIUM: system_set_exec_motion_override_flag(EXEC_RAPID_OVR_MEDIUM); break;
+        case CMD_RAPID_OVR_LOW: system_set_exec_motion_override_flag(EXEC_RAPID_OVR_LOW); break;
+        case CMD_SPINDLE_OVR_RESET: system_set_exec_accessory_override_flag(EXEC_SPINDLE_OVR_RESET); break;
+        case CMD_SPINDLE_OVR_COARSE_PLUS: system_set_exec_accessory_override_flag(EXEC_SPINDLE_OVR_COARSE_PLUS); break;
+        case CMD_SPINDLE_OVR_COARSE_MINUS: system_set_exec_accessory_override_flag(EXEC_SPINDLE_OVR_COARSE_MINUS); break;
+        case CMD_SPINDLE_OVR_FINE_PLUS: system_set_exec_accessory_override_flag(EXEC_SPINDLE_OVR_FINE_PLUS); break;
+        case CMD_SPINDLE_OVR_FINE_MINUS: system_set_exec_accessory_override_flag(EXEC_SPINDLE_OVR_FINE_MINUS); break;
+        case CMD_SPINDLE_OVR_STOP: system_set_exec_accessory_override_flag(EXEC_SPINDLE_OVR_STOP); break;
+        case CMD_COOLANT_FLOOD_OVR_TOGGLE: system_set_exec_accessory_override_flag(EXEC_COOLANT_FLOOD_OVR_TOGGLE); break;
+        #ifdef ENABLE_M7
+        case CMD_COOLANT_MIST_OVR_TOGGLE: system_set_exec_accessory_override_flag(EXEC_COOLANT_MIST_OVR_TOGGLE); break;
+        #endif
+	}
+	return add && data <= 0x7F;
 }

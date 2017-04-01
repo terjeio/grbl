@@ -25,7 +25,8 @@
 #define false 0
 #define true 1
 
-#define SOME_LARGE_VALUE 1.0E+38
+#define SOME_LARGE_VALUE 1.0E+38f
+#define M_PI 3.14159265358979323846f
 
 // Axis array index values. Must start with 0 and be continuous.
 #define N_AXIS 3 // Number of axes
@@ -33,6 +34,10 @@
 #define Y_AXIS 1
 #define Z_AXIS 2
 // #define A_AXIS 3
+#define AXES_BITMASK ((1 << X_AXIS )|(1 << Y_AXIS)|(1 << Z_AXIS))
+
+#define delay_ms(d) hal.delay_ms(d)
+#define delay_us(d) hal.delay_us(d)
 
 // CoreXY motor assignments. DO NOT ALTER.
 // NOTE: If the A and B motor axis bindings are changed, this effects the CoreXY equations.
@@ -42,8 +47,8 @@
 #endif
 
 // Conversions
-#define MM_PER_INCH (25.40)
-#define INCH_PER_MM (0.0393701)
+#define MM_PER_INCH (25.40f)
+#define INCH_PER_MM (0.0393701f)
 #define TICKS_PER_MICROSECOND (F_CPU/1000000)
 
 #define DELAY_MODE_DWELL       0
@@ -51,7 +56,7 @@
 
 // Useful macros
 #define clear_vector(a) memset(a, 0, sizeof(a))
-#define clear_vector_float(a) memset(a, 0.0, sizeof(float)*N_AXIS)
+#define clear_vector_float(a) memset(a, 0.0f, sizeof(float)*N_AXIS)
 // #define clear_vector_long(a) memset(a, 0.0, sizeof(long)*N_AXIS)
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
@@ -71,12 +76,6 @@ uint8_t read_float(char *line, uint8_t *char_counter, float *float_ptr);
 
 // Non-blocking delay function used for general operation and suspend features.
 void delay_sec(float seconds, uint8_t mode);
-
-// Delays variable-defined milliseconds. Compiler compatibility fix for _delay_ms().
-void delay_ms(uint16_t ms);
-
-// Delays variable-defined microseconds. Compiler compatibility fix for _delay_us().
-void delay_us(uint32_t us);
 
 // Computes hypotenuse, avoiding avr-gcc's bloated version and the extra error checking.
 float hypot_f(float x, float y);

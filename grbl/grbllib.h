@@ -1,8 +1,9 @@
 /*
-  probe.h - code pertaining to probing methods
+  main.c - An embedded CNC Controller with rs274/ngc (g-code) support
   Part of Grbl
 
-  Copyright (c) 2014-2015 Sungeun K. Jeon
+  Copyright (c) 2011-2015 Sungeun K. Jeon
+  Copyright (c) 2009-2011 Simen Svale Skogsrud
 
   Grbl is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -18,18 +19,6 @@
   along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef probe_h
-#define probe_h
+#include <stdint.h>
 
-// Values that define the probing state machine.
-#define PROBE_OFF     0 // Probing disabled or not in use. (Must be zero.)
-#define PROBE_ACTIVE  1 // Actively watching the input pin.
-
-#define probe_get_state() hal.probe_get_state()
-#define probe_configure_invert_mask(m) hal.probe_configure_invert_mask(m)
-
-// Monitors probe pin state and records the system position when detected. Called by the
-// stepper ISR per ISR tick.
-void probe_state_monitor();
-
-#endif
+int grbl_enter ();

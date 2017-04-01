@@ -21,10 +21,11 @@
 
 #include "grbl.h"
 
+//#include "debug.h"
 
 // Some useful constants.
-#define DT_SEGMENT (1.0/(ACCELERATION_TICKS_PER_SECOND*60.0)) // min/segment
-#define REQ_MM_INCREMENT_SCALAR 1.25
+#define DT_SEGMENT (1.0f/(ACCELERATION_TICKS_PER_SECOND*60.0f)) // min/segment
+#define REQ_MM_INCREMENT_SCALAR 1.25f
 #define RAMP_ACCEL 0
 #define RAMP_CRUISE 1
 #define RAMP_DECEL 2
@@ -87,7 +88,7 @@ typedef struct {
     uint8_t prescaler;      // Without AMASS, a prescaler is required to adjust for slow timing.
   #endif
   #ifdef VARIABLE_SPINDLE
-    uint8_t spindle_pwm;
+    uint32_t spindle_pwm;
   #endif
 } segment_t;
 static segment_t segment_buffer[SEGMENT_BUFFER_SIZE];
@@ -98,10 +99,6 @@ typedef struct {
   uint32_t counter_x,        // Counter variables for the bresenham line tracer
            counter_y,
            counter_z;
-  #ifdef STEP_PULSE_DELAY
-    uint8_t step_bits;  // Stores out_bits output to complete the step pulse delay
-  #endif
-
   uint8_t execute_step;     // Flags step execution for each interrupt.
   uint8_t step_pulse_time;  // Step pulse reset time after step rise
   uint8_t step_outbits;         // The next stepping-bits to be output
@@ -109,7 +106,9 @@ typedef struct {
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     uint32_t steps[N_AXIS];
   #endif
-
+  #ifdef VARIABLE_SPINDLE
+    uint32_t spindle_pwm;
+  #endif
   uint16_t step_count;       // Steps remaining in line segment motion
   uint8_t exec_block_index; // Tracks the current st_block index. Change indicates new block.
   st_block_t *exec_block;   // Pointer to the block data for the segment being executed
@@ -121,13 +120,6 @@ static stepper_t st;
 static volatile uint8_t segment_buffer_tail;
 static uint8_t segment_buffer_head;
 static uint8_t segment_next_head;
-
-// Step and direction port invert masks.
-static uint8_t step_port_invert_mask;
-static uint8_t dir_port_invert_mask;
-
-// Used to avoid ISR nesting of the "Stepper Driver Interrupt". Should never occur though.
-static volatile uint8_t busy;
 
 // Pointers for the step segment being prepped from the planner buffer. Accessed only by the
 // main program. Pointers may be planning segments or planner blocks ahead of what being executed.
@@ -163,7 +155,7 @@ typedef struct {
 
   #ifdef VARIABLE_SPINDLE
     float inv_rate;    // Used by PWM laser mode to speed up segment calculations.
-    uint8_t current_spindle_pwm; 
+    uint32_t current_spindle_pwm;
   #endif
 } st_prep_t;
 static st_prep_t prep;
@@ -213,25 +205,17 @@ static st_prep_t prep;
 void st_wake_up()
 {
   // Enable stepper drivers.
-  if (bit_istrue(settings.flags,BITFLAG_INVERT_ST_ENABLE)) { STEPPERS_DISABLE_PORT |= (1<<STEPPERS_DISABLE_BIT); }
-  else { STEPPERS_DISABLE_PORT &= ~(1<<STEPPERS_DISABLE_BIT); }
+	hal.stepper_enable(true);
 
   // Initialize stepper output bits to ensure first ISR call does not step.
-  st.step_outbits = step_port_invert_mask;
+    st.step_outbits = 0;
+    st.spindle_pwm  = SPINDLE_PWM_OFF_VALUE;
 
-  // Initialize step pulse timing from settings. Here to ensure updating after re-writing.
-  #ifdef STEP_PULSE_DELAY
-    // Set total step pulse time after direction pin set. Ad hoc computation from oscilloscope.
-    st.step_pulse_time = -(((settings.pulse_microseconds+STEP_PULSE_DELAY-2)*TICKS_PER_MICROSECOND) >> 3);
-    // Set delay between direction pin write and step command.
-    OCR0A = -(((settings.pulse_microseconds)*TICKS_PER_MICROSECOND) >> 3);
-  #else // Normal operation
-    // Set step pulse time. Ad hoc computation from oscilloscope. Uses two's complement.
-    st.step_pulse_time = -(((settings.pulse_microseconds-2)*TICKS_PER_MICROSECOND) >> 3);
-  #endif
-
-  // Enable Stepper Driver Interrupt
-  TIMSK1 |= (1<<OCIE1A);
+#ifdef STEP_PULSE_DELAY
+      hal.stepper_wake_up(STEP_PULSE_DELAY);
+#else
+      hal.stepper_wake_up(0);
+#endif
 }
 
 
@@ -239,21 +223,20 @@ void st_wake_up()
 void st_go_idle()
 {
   // Disable Stepper Driver Interrupt. Allow Stepper Port Reset Interrupt to finish, if active.
-  TIMSK1 &= ~(1<<OCIE1A); // Disable Timer1 interrupt
-  TCCR1B = (TCCR1B & ~((1<<CS12) | (1<<CS11))) | (1<<CS10); // Reset clock to no prescaling.
-  busy = false;
+
+	hal.stepper_go_idle();
 
   // Set stepper driver idle state, disabled or enabled, depending on settings and circumstances.
   bool pin_state = false; // Keep enabled.
   if (((settings.stepper_idle_lock_time != 0xff) || sys_rt_exec_alarm || sys.state == STATE_SLEEP) && sys.state != STATE_HOMING) {
     // Force stepper dwell to lock axes for a defined amount of time to ensure the axes come to a complete
     // stop and not drift from residual inertial forces at the end of the last movement.
-    delay_ms(settings.stepper_idle_lock_time);
-    pin_state = true; // Override. Disable steppers.
+	    delay_ms(settings.stepper_idle_lock_time);
+	    pin_state = true; // Override. Disable steppers.
   }
-  if (bit_istrue(settings.flags,BITFLAG_INVERT_ST_ENABLE)) { pin_state = !pin_state; } // Apply pin invert.
-  if (pin_state) { STEPPERS_DISABLE_PORT |= (1<<STEPPERS_DISABLE_BIT); }
-  else { STEPPERS_DISABLE_PORT &= ~(1<<STEPPERS_DISABLE_BIT); }
+
+  hal.stepper_enable(pin_state);
+
 }
 
 
@@ -305,44 +288,39 @@ void st_go_idle()
 // TODO: Replace direct updating of the int32 position counters in the ISR somehow. Perhaps use smaller
 // int8 variables and update position counters only when a segment completes. This can get complicated
 // with probing and homing cycles that require true real-time positions.
-ISR(TIMER1_COMPA_vect)
+void stepper_driver_interrupt_handler (void)
 {
-  if (busy) { return; } // The busy-flag is used to avoid reentering this interrupt
 
-  // Set the direction pins a couple of nanoseconds before we step the steppers
-  DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | (st.dir_outbits & DIRECTION_MASK);
+#ifdef DEBUGOUT
+//	debugout(1);
+#endif
+	// Set the direction pins a couple of nanoseconds before we step the steppers
 
-  // Then pulse the stepping pins
-  #ifdef STEP_PULSE_DELAY
-    st.step_bits = (STEP_PORT & ~STEP_MASK) | st.step_outbits; // Store out_bits to prevent overwriting.
-  #else  // Normal operation
-    STEP_PORT = (STEP_PORT & ~STEP_MASK) | st.step_outbits;
-  #endif
+	// Then pulse the stepping pins and
+	// Enable step pulse reset timer so that The Stepper Port Reset Interrupt can reset the signal after
+	// exactly settings.pulse_microseconds microseconds, independent of the main Timer1 prescaler.
 
-  // Enable step pulse reset timer so that The Stepper Port Reset Interrupt can reset the signal after
-  // exactly settings.pulse_microseconds microseconds, independent of the main Timer1 prescaler.
-  TCNT0 = st.step_pulse_time; // Reload Timer0 counter
-  TCCR0B = (1<<CS01); // Begin Timer0. Full speed, 1/8 prescaler
-
-  busy = true;
-  sei(); // Re-enable interrupts to allow Stepper Port Reset Interrupt to fire on-time.
-         // NOTE: The remaining code in this ISR will finish before returning to main program.
+	if(st.step_outbits)
+		hal.stepper_pulse_start(st.dir_outbits, st.step_outbits, st.spindle_pwm);
 
   // If there is no step segment, attempt to pop one from the stepper buffer
   if (st.exec_segment == NULL) {
     // Anything in the buffer? If so, load and initialize next step segment.
     if (segment_buffer_head != segment_buffer_tail) {
-      // Initialize new step segment and load number of steps to execute
+
+    	// Initialize new step segment and load number of steps to execute
       st.exec_segment = &segment_buffer[segment_buffer_tail];
+
+      // Initialize step segment timing per step and load number of steps to execute.
 
       #ifndef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
         // With AMASS is disabled, set timer prescaler for segments with slow step frequencies (< 250Hz).
-        TCCR1B = (TCCR1B & ~(0x07<<CS10)) | (st.exec_segment->prescaler<<CS10);
-      #endif
+      	hal.stepper_cycles_per_tick(st.exec_segment->prescaler, st.exec_segment->cycles_per_tick);
+      #else
+        hal.stepper_cycles_per_tick(0, st.exec_segment->cycles_per_tick);
+	  #endif
 
-      // Initialize step segment timing per step and load number of steps to execute.
-      OCR1A = st.exec_segment->cycles_per_tick;
-      st.step_count = st.exec_segment->n_step; // NOTE: Can sometimes be zero when moving slow.
+        st.step_count = st.exec_segment->n_step; // NOTE: Can sometimes be zero when moving slow.
       // If the new segment starts a new planner block, initialize stepper variables and counters.
       // NOTE: When the segment data index changes, this indicates a new planner block.
       if ( st.exec_block_index != st.exec_segment->st_block_index ) {
@@ -352,7 +330,7 @@ ISR(TIMER1_COMPA_vect)
         // Initialize Bresenham line and distance counters
         st.counter_x = st.counter_y = st.counter_z = (st.exec_block->step_event_count >> 1);
       }
-      st.dir_outbits = st.exec_block->direction_bits ^ dir_port_invert_mask;
+      st.dir_outbits = st.exec_block->direction_bits;
 
       #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
         // With AMASS enabled, adjust Bresenham axis increment counters according to AMASS level.
@@ -363,17 +341,21 @@ ISR(TIMER1_COMPA_vect)
 
       #ifdef VARIABLE_SPINDLE
         // Set real-time spindle output as segment is loaded, just prior to the first step.
-        spindle_set_speed(st.exec_segment->spindle_pwm);
+        st.spindle_pwm = st.exec_segment->spindle_pwm;
       #endif
-
     } else {
       // Segment buffer empty. Shutdown.
       st_go_idle();
       #ifdef VARIABLE_SPINDLE
         // Ensure pwm is set properly upon completion of rate-controlled motion.
-        if (st.exec_block->is_pwm_rate_adjusted) { spindle_set_speed(SPINDLE_PWM_OFF_VALUE); }
+        if (st.exec_block->is_pwm_rate_adjusted) { st.spindle_pwm = spindle_set_speed(SPINDLE_PWM_OFF_VALUE); }
       #endif
       system_set_exec_state_flag(EXEC_CYCLE_STOP); // Flag main program for cycle end
+
+#ifdef DEBUGOUT
+//	debugout(0);
+#endif
+
       return; // Nothing to do but exit.
     }
   }
@@ -429,54 +411,11 @@ ISR(TIMER1_COMPA_vect)
     st.exec_segment = NULL;
     if ( ++segment_buffer_tail == SEGMENT_BUFFER_SIZE) { segment_buffer_tail = 0; }
   }
-
-  st.step_outbits ^= step_port_invert_mask;  // Apply step port invert mask
-  busy = false;
-}
-
-
-/* The Stepper Port Reset Interrupt: Timer0 OVF interrupt handles the falling edge of the step
-   pulse. This should always trigger before the next Timer1 COMPA interrupt and independently
-   finish, if Timer1 is disabled after completing a move.
-   NOTE: Interrupt collisions between the serial and stepper interrupts can cause delays by
-   a few microseconds, if they execute right before one another. Not a big deal, but can
-   cause issues at high step rates if another high frequency asynchronous interrupt is
-   added to Grbl.
-*/
-// This interrupt is enabled by ISR_TIMER1_COMPAREA when it sets the motor port bits to execute
-// a step. This ISR resets the motor port after a short period (settings.pulse_microseconds)
-// completing one step cycle.
-ISR(TIMER0_OVF_vect)
-{
-  // Reset stepping pins (leave the direction pins)
-  STEP_PORT = (STEP_PORT & ~STEP_MASK) | (step_port_invert_mask & STEP_MASK);
-  TCCR0B = 0; // Disable Timer0 to prevent re-entering this interrupt when it's not needed.
-}
-#ifdef STEP_PULSE_DELAY
-  // This interrupt is used only when STEP_PULSE_DELAY is enabled. Here, the step pulse is
-  // initiated after the STEP_PULSE_DELAY time period has elapsed. The ISR TIMER2_OVF interrupt
-  // will then trigger after the appropriate settings.pulse_microseconds, as in normal operation.
-  // The new timing between direction, step pulse, and step complete events are setup in the
-  // st_wake_up() routine.
-  ISR(TIMER0_COMPA_vect)
-  {
-    STEP_PORT = st.step_bits; // Begin step pulse.
-  }
+#ifdef DEBUGOUT
+//	debugout(0);
 #endif
 
-
-// Generates the step and direction port invert masks used in the Stepper Interrupt Driver.
-void st_generate_step_dir_invert_masks()
-{
-  uint8_t idx;
-  step_port_invert_mask = 0;
-  dir_port_invert_mask = 0;
-  for (idx=0; idx<N_AXIS; idx++) {
-    if (bit_istrue(settings.step_invert_mask,bit(idx))) { step_port_invert_mask |= get_step_pin_mask(idx); }
-    if (bit_istrue(settings.dir_invert_mask,bit(idx))) { dir_port_invert_mask |= get_direction_pin_mask(idx); }
-  }
 }
-
 
 // Reset and clear stepper subsystem variables
 void st_reset()
@@ -492,43 +431,14 @@ void st_reset()
   segment_buffer_tail = 0;
   segment_buffer_head = 0; // empty = tail
   segment_next_head = 1;
-  busy = false;
 
-  st_generate_step_dir_invert_masks();
-  st.dir_outbits = dir_port_invert_mask; // Initialize direction bits to default.
+  st.dir_outbits = 0; // Initialize direction bits to default.
 
   // Initialize step and direction port pins.
-  STEP_PORT = (STEP_PORT & ~STEP_MASK) | step_port_invert_mask;
-  DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | dir_port_invert_mask;
+  hal.stepper_set_outputs(0);
+  hal.stepper_set_directions(0);
+
 }
-
-
-// Initialize and start the stepper motor subsystem
-void stepper_init()
-{
-  // Configure step and direction interface pins
-  STEP_DDR |= STEP_MASK;
-  STEPPERS_DISABLE_DDR |= 1<<STEPPERS_DISABLE_BIT;
-  DIRECTION_DDR |= DIRECTION_MASK;
-
-  // Configure Timer 1: Stepper Driver Interrupt
-  TCCR1B &= ~(1<<WGM13); // waveform generation = 0100 = CTC
-  TCCR1B |=  (1<<WGM12);
-  TCCR1A &= ~((1<<WGM11) | (1<<WGM10));
-  TCCR1A &= ~((1<<COM1A1) | (1<<COM1A0) | (1<<COM1B1) | (1<<COM1B0)); // Disconnect OC1 output
-  // TCCR1B = (TCCR1B & ~((1<<CS12) | (1<<CS11))) | (1<<CS10); // Set in st_go_idle().
-  // TIMSK1 &= ~(1<<OCIE1A);  // Set in st_go_idle().
-
-  // Configure Timer 0: Stepper Port Reset Interrupt
-  TIMSK0 &= ~((1<<OCIE0B) | (1<<OCIE0A) | (1<<TOIE0)); // Disconnect OC0 outputs and OVF interrupt.
-  TCCR0A = 0; // Normal operation
-  TCCR0B = 0; // Disable Timer0 until needed
-  TIMSK0 |= (1<<TOIE0); // Enable Timer0 overflow interrupt
-  #ifdef STEP_PULSE_DELAY
-    TIMSK0 |= (1<<OCIE0A); // Enable Timer0 Compare Match A interrupt
-  #endif
-}
-
 
 // Called by planner_recalculate() when the executing block is updated by the new plan.
 void st_update_plan_block_parameters()
@@ -607,7 +517,9 @@ void st_prep_buffer()
   if (bit_istrue(sys.step_control,STEP_CONTROL_END_MOTION)) { return; }
 
   while (segment_buffer_tail != segment_next_head) { // Check if we need to fill the buffer.
-
+#ifdef DEBUGOUT
+	debugout(1);
+#endif
     // Determine if we need to load a new planner block or if the block needs to be recomputed.
     if (pl_block == NULL) {
 
@@ -652,7 +564,7 @@ void st_prep_buffer()
         prep.steps_remaining = (float)pl_block->step_event_count;
         prep.step_per_mm = prep.steps_remaining/pl_block->millimeters;
         prep.req_mm_increment = REQ_MM_INCREMENT_SCALAR/prep.step_per_mm;
-        prep.dt_remainder = 0.0; // Reset for new segment block
+        prep.dt_remainder = 0.0f; // Reset for new segment block
 
         if ((sys.step_control & STEP_CONTROL_EXECUTE_HOLD) || (prep.recalculate_flag & PREP_FLAG_DECEL_OVERRIDE)) {
           // New block loaded mid-hold. Override planner block entry speed to enforce deceleration.
@@ -662,16 +574,16 @@ void st_prep_buffer()
         } else {
           prep.current_speed = sqrt(pl_block->entry_speed_sqr);
         }
-        
+
         #ifdef VARIABLE_SPINDLE
           // Setup laser mode variables. PWM rate adjusted motions will always complete a motion with the
-          // spindle off. 
+          // spindle off.
           st_prep_block->is_pwm_rate_adjusted = false;
           if (settings.flags & BITFLAG_LASER_MODE) {
-            if (pl_block->condition & PL_COND_FLAG_SPINDLE_CCW) { 
+            if (pl_block->condition & PL_COND_FLAG_SPINDLE_CCW) {
               // Pre-compute inverse programmed rate to speed up PWM updating per step segment.
-              prep.inv_rate = 1.0/pl_block->programmed_rate;
-              st_prep_block->is_pwm_rate_adjusted = true; 
+              prep.inv_rate = 1.0f; //1.0/pl_block->programmed_rate; TODO: add config for PPI mode
+              st_prep_block->is_pwm_rate_adjusted = true;
             }
           }
         #endif
@@ -683,20 +595,20 @@ void st_prep_buffer()
 			 planner has updated it. For a commanded forced-deceleration, such as from a feed
 			 hold, override the planner velocities and decelerate to the target exit speed.
 			*/
-			prep.mm_complete = 0.0; // Default velocity profile complete at 0.0mm from end of block.
-			float inv_2_accel = 0.5/pl_block->acceleration;
+			prep.mm_complete = 0.0f; // Default velocity profile complete at 0.0mm from end of block.
+			float inv_2_accel = 0.5f/pl_block->acceleration;
 			if (sys.step_control & STEP_CONTROL_EXECUTE_HOLD) { // [Forced Deceleration to Zero Velocity]
 				// Compute velocity profile parameters for a feed hold in-progress. This profile overrides
 				// the planner block profile, enforcing a deceleration to zero speed.
 				prep.ramp_type = RAMP_DECEL;
 				// Compute decelerate distance relative to end of block.
 				float decel_dist = pl_block->millimeters - inv_2_accel*pl_block->entry_speed_sqr;
-				if (decel_dist < 0.0) {
+				if (decel_dist < 0.0f) {
 					// Deceleration through entire planner block. End of feed hold is not in this block.
 					prep.exit_speed = sqrt(pl_block->entry_speed_sqr-2*pl_block->acceleration*pl_block->millimeters);
 				} else {
 					prep.mm_complete = decel_dist; // End of feed hold.
-					prep.exit_speed = 0.0;
+					prep.exit_speed = 0.0f;
 				}
 			} else { // [Normal Operation]
 				// Compute or recompute velocity profile parameters of the prepped planner block.
@@ -706,7 +618,7 @@ void st_prep_buffer()
 				float exit_speed_sqr;
 				float nominal_speed;
         if (sys.step_control & STEP_CONTROL_EXECUTE_SYS_MOTION) {
-          prep.exit_speed = exit_speed_sqr = 0.0; // Enforce stop at end of system motion.
+          prep.exit_speed = exit_speed_sqr = 0.0f; // Enforce stop at end of system motion.
         } else {
           exit_speed_sqr = plan_get_exec_block_exit_speed_sqr();
           prep.exit_speed = sqrt(exit_speed_sqr);
@@ -715,17 +627,17 @@ void st_prep_buffer()
         nominal_speed = plan_compute_profile_nominal_speed(pl_block);
 				float nominal_speed_sqr = nominal_speed*nominal_speed;
 				float intersect_distance =
-								0.5*(pl_block->millimeters+inv_2_accel*(pl_block->entry_speed_sqr-exit_speed_sqr));
+								0.5f*(pl_block->millimeters+inv_2_accel*(pl_block->entry_speed_sqr-exit_speed_sqr));
 
         if (pl_block->entry_speed_sqr > nominal_speed_sqr) { // Only occurs during override reductions.
           prep.accelerate_until = pl_block->millimeters - inv_2_accel*(pl_block->entry_speed_sqr-nominal_speed_sqr);
-          if (prep.accelerate_until <= 0.0) { // Deceleration-only.
+          if (prep.accelerate_until <= 0.0f) { // Deceleration-only.
             prep.ramp_type = RAMP_DECEL;
             // prep.decelerate_after = pl_block->millimeters;
             // prep.maximum_speed = prep.current_speed;
 
             // Compute override block exit speed since it doesn't match the planner exit speed.
-            prep.exit_speed = sqrt(pl_block->entry_speed_sqr - 2*pl_block->acceleration*pl_block->millimeters);
+            prep.exit_speed = sqrt(pl_block->entry_speed_sqr - 2.0f*pl_block->acceleration*pl_block->millimeters);
             prep.recalculate_flag |= PREP_FLAG_DECEL_OVERRIDE; // Flag to load next block as deceleration override.
 
             // TODO: Determine correct handling of parameters in deceleration-only.
@@ -738,7 +650,7 @@ void st_prep_buffer()
             prep.maximum_speed = nominal_speed;
             prep.ramp_type = RAMP_DECEL_OVERRIDE;
           }
-				} else if (intersect_distance > 0.0) {
+				} else if (intersect_distance > 0.0f) {
 					if (intersect_distance < pl_block->millimeters) { // Either trapezoid or triangle types
 						// NOTE: For acceleration-cruise and cruise-only types, following calculation will be 0.0.
 						prep.decelerate_after = inv_2_accel*(nominal_speed_sqr-exit_speed_sqr);
@@ -754,7 +666,7 @@ void st_prep_buffer()
 						} else { // Triangle type
 							prep.accelerate_until = intersect_distance;
 							prep.decelerate_after = intersect_distance;
-							prep.maximum_speed = sqrt(2.0*pl_block->acceleration*intersect_distance+exit_speed_sqr);
+							prep.maximum_speed = sqrt(2.0f*pl_block->acceleration*intersect_distance+exit_speed_sqr);
 						}
 					} else { // Deceleration-only type
             prep.ramp_type = RAMP_DECEL;
@@ -762,17 +674,17 @@ void st_prep_buffer()
             // prep.maximum_speed = prep.current_speed;
 					}
 				} else { // Acceleration-only type
-					prep.accelerate_until = 0.0;
-					// prep.decelerate_after = 0.0;
+					prep.accelerate_until = 0.0f;
+					// prep.decelerate_after = 0.0f;
 					prep.maximum_speed = prep.exit_speed;
 				}
 			}
-      
+
       #ifdef VARIABLE_SPINDLE
         bit_true(sys.step_control, STEP_CONTROL_UPDATE_SPINDLE_PWM); // Force update whenever updating block.
       #endif
     }
-    
+
     // Initialize new segment
     segment_t *prep_segment = &segment_buffer[segment_buffer_head];
 
@@ -794,24 +706,24 @@ void st_prep_buffer()
       such as from a feed hold.
     */
     float dt_max = DT_SEGMENT; // Maximum segment time
-    float dt = 0.0; // Initialize segment time
+    float dt = 0.0f; // Initialize segment time
     float time_var = dt_max; // Time worker variable
     float mm_var; // mm-Distance worker variable
     float speed_var; // Speed worker variable
     float mm_remaining = pl_block->millimeters; // New segment distance from end of block.
     float minimum_mm = mm_remaining-prep.req_mm_increment; // Guarantee at least one step.
-    if (minimum_mm < 0.0) { minimum_mm = 0.0; }
+    if (minimum_mm < 0.0f) { minimum_mm = 0.0f; }
 
     do {
       switch (prep.ramp_type) {
         case RAMP_DECEL_OVERRIDE:
           speed_var = pl_block->acceleration*time_var;
-          mm_var = time_var*(prep.current_speed - 0.5*speed_var);
+          mm_var = time_var*(prep.current_speed - 0.5f*speed_var);
           mm_remaining -= mm_var;
-          if ((mm_remaining < prep.accelerate_until) || (mm_var <= 0)) {
+          if ((mm_remaining < prep.accelerate_until) || (mm_var <= 0.0f)) {
             // Cruise or cruise-deceleration types only for deceleration override.
             mm_remaining = prep.accelerate_until; // NOTE: 0.0 at EOB
-            time_var = 2.0*(pl_block->millimeters-mm_remaining)/(prep.current_speed+prep.maximum_speed);
+            time_var = 2.0f*(pl_block->millimeters-mm_remaining)/(prep.current_speed+prep.maximum_speed);
             prep.ramp_type = RAMP_CRUISE;
             prep.current_speed = prep.maximum_speed;
           } else { // Mid-deceleration override ramp.
@@ -821,11 +733,11 @@ void st_prep_buffer()
         case RAMP_ACCEL:
           // NOTE: Acceleration ramp only computes during first do-while loop.
           speed_var = pl_block->acceleration*time_var;
-          mm_remaining -= time_var*(prep.current_speed + 0.5*speed_var);
+          mm_remaining -= time_var*(prep.current_speed + 0.5f*speed_var);
           if (mm_remaining < prep.accelerate_until) { // End of acceleration ramp.
             // Acceleration-cruise, acceleration-deceleration ramp junction, or end of block.
             mm_remaining = prep.accelerate_until; // NOTE: 0.0 at EOB
-            time_var = 2.0*(pl_block->millimeters-mm_remaining)/(prep.current_speed+prep.maximum_speed);
+            time_var = 2.0f*(pl_block->millimeters-mm_remaining)/(prep.current_speed+prep.maximum_speed);
             if (mm_remaining == prep.decelerate_after) { prep.ramp_type = RAMP_DECEL; }
             else { prep.ramp_type = RAMP_CRUISE; }
             prep.current_speed = prep.maximum_speed;
@@ -852,7 +764,7 @@ void st_prep_buffer()
           speed_var = pl_block->acceleration*time_var; // Used as delta speed (mm/min)
           if (prep.current_speed > speed_var) { // Check if at or below zero speed.
             // Compute distance from end of segment to end of block.
-            mm_var = mm_remaining - time_var*(prep.current_speed - 0.5*speed_var); // (mm)
+            mm_var = mm_remaining - time_var*(prep.current_speed - 0.5f*speed_var); // (mm)
             if (mm_var > prep.mm_complete) { // Typical case. In deceleration ramp.
               mm_remaining = mm_var;
               prep.current_speed -= speed_var;
@@ -860,7 +772,7 @@ void st_prep_buffer()
             }
           }
           // Otherwise, at end of block or end of forced-deceleration.
-          time_var = 2.0*(mm_remaining-prep.mm_complete)/(prep.current_speed+prep.exit_speed);
+          time_var = 2.0f*(mm_remaining-prep.mm_complete)/(prep.current_speed+prep.exit_speed);
           mm_remaining = prep.mm_complete;
           prep.current_speed = prep.exit_speed;
       }
@@ -882,17 +794,15 @@ void st_prep_buffer()
       /* -----------------------------------------------------------------------------------
         Compute spindle speed PWM output for step segment
       */
-      
+
       if (st_prep_block->is_pwm_rate_adjusted || (sys.step_control & STEP_CONTROL_UPDATE_SPINDLE_PWM)) {
         if (pl_block->condition & (PL_COND_FLAG_SPINDLE_CW | PL_COND_FLAG_SPINDLE_CCW)) {
-          float rpm = pl_block->spindle_speed;
-          // NOTE: Feed and rapid overrides are independent of PWM value and do not alter laser power/rate.        
-          if (st_prep_block->is_pwm_rate_adjusted) { rpm *= (prep.current_speed * prep.inv_rate); }
+          // NOTE: Feed and rapid overrides are independent of PWM value and do not alter laser power/rate.
           // If current_speed is zero, then may need to be rpm_min*(100/MAX_SPINDLE_SPEED_OVERRIDE)
           // but this would be instantaneous only and during a motion. May not matter at all.
-          prep.current_spindle_pwm = spindle_compute_pwm_value(rpm);
-        } else { 
-          sys.spindle_speed = 0.0;
+          prep.current_spindle_pwm = spindle_compute_pwm_value(st_prep_block->is_pwm_rate_adjusted ? pl_block->spindle_speed * prep.current_speed * prep.inv_rate : pl_block->spindle_speed);
+        } else {
+          sys.spindle_speed = 0.0f;
           prep.current_spindle_pwm = SPINDLE_PWM_OFF_VALUE;
         }
         bit_false(sys.step_control,STEP_CONTROL_UPDATE_SPINDLE_PWM);
@@ -900,7 +810,7 @@ void st_prep_buffer()
       prep_segment->spindle_pwm = prep.current_spindle_pwm; // Reload segment PWM value
 
     #endif
-    
+
     /* -----------------------------------------------------------------------------------
        Compute segment step rate, steps to execute, and apply necessary rate corrections.
        NOTE: Steps are computed by direct scalar conversion of the millimeter distance
@@ -941,7 +851,7 @@ void st_prep_buffer()
     float inv_rate = dt/(last_n_steps_remaining - step_dist_remaining); // Compute adjusted step rate inverse
 
     // Compute CPU cycles per step for the prepped segment.
-    uint32_t cycles = ceil( (TICKS_PER_MICROSECOND*1000000*60)*inv_rate ); // (cycles/step)
+    uint32_t cycles = ceil( (TICKS_PER_MICROSECOND*1000000ULL*60)*inv_rate ); // (cycles/step)
 
     #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
       // Compute step timing and multi-axis smoothing level.
@@ -986,7 +896,7 @@ void st_prep_buffer()
     // Check for exit conditions and flag to load next planner block.
     if (mm_remaining == prep.mm_complete) {
       // End of planner block or forced-termination. No more distance to be executed.
-      if (mm_remaining > 0.0) { // At end of forced-termination.
+      if (mm_remaining > 0.0f) { // At end of forced-termination.
         // Reset prep parameters for resuming and then bail. Allow the stepper ISR to complete
         // the segment queue, where realtime protocol will set new state upon receiving the
         // cycle stop flag from the ISR. Prep_segment is blocked until then.
@@ -1005,7 +915,9 @@ void st_prep_buffer()
         plan_discard_current_block();
       }
     }
-
+#ifdef DEBUGOUT
+	debugout(0);
+#endif
   }
 }
 

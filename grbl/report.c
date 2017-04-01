@@ -28,7 +28,6 @@
 
 #include "grbl.h"
 
-
 // Internal report utilities to reduce flash with repetitive tasks turned into functions.
 void report_util_setting_prefix(uint8_t n) { serial_write('$'); print_uint8_base10(n); serial_write('='); }
 static void report_util_line_feed() { printPgmString(PSTR("\r\n")); }
@@ -50,7 +49,7 @@ static void report_util_setting_string(uint8_t n) {
   serial_write('(');
   switch(n) {
     case 0: printPgmString(PSTR("stp pulse")); break;
-    case 1: printPgmString(PSTR("idl delay")); break; 
+    case 1: printPgmString(PSTR("idl delay")); break;
     case 2: printPgmString(PSTR("stp inv")); break;
     case 3: printPgmString(PSTR("dir inv")); break;
     case 4: printPgmString(PSTR("stp en inv")); break;
@@ -91,13 +90,13 @@ static void report_util_setting_string(uint8_t n) {
 }
 */
 
-static void report_util_uint8_setting(uint8_t n, int val) { 
-  report_util_setting_prefix(n); 
-  print_uint8_base10(val); 
-  report_util_line_feed(); // report_util_setting_string(n); 
+static void report_util_uint8_setting(uint8_t n, int val) {
+  report_util_setting_prefix(n);
+  print_uint8_base10(val);
+  report_util_line_feed(); // report_util_setting_string(n);
 }
-static void report_util_float_setting(uint8_t n, float val, uint8_t n_decimal) { 
-  report_util_setting_prefix(n); 
+static void report_util_float_setting(uint8_t n, float val, uint8_t n_decimal) {
+  report_util_setting_prefix(n);
   printFloat(val,n_decimal);
   report_util_line_feed(); // report_util_setting_string(n);
 }
@@ -174,7 +173,7 @@ void report_init_message()
 
 // Grbl help message
 void report_grbl_help() {
-  printPgmString(PSTR("[HLP:$$ $# $G $I $N $x=val $Nx=line $J=line $SLP $C $X $H ~ ! ? ctrl-x]\r\n"));    
+  printPgmString(PSTR("[HLP:$$ $# $G $I $N $x=val $Nx=line $J=line $SLP $C $X $H ~ ! ? ctrl-x]\r\n"));
 }
 
 
@@ -216,7 +215,7 @@ void report_grbl_settings() {
       switch (set_idx) {
         case 0: report_util_float_setting(val+idx,settings.steps_per_mm[idx],N_DECIMAL_SETTINGVALUE); break;
         case 1: report_util_float_setting(val+idx,settings.max_rate[idx],N_DECIMAL_SETTINGVALUE); break;
-        case 2: report_util_float_setting(val+idx,settings.acceleration[idx]/(60*60),N_DECIMAL_SETTINGVALUE); break;
+        case 2: report_util_float_setting(val+idx,settings.acceleration[idx]/(60.0f*60.0f),N_DECIMAL_SETTINGVALUE); break;
         case 3: report_util_float_setting(val+idx,-settings.max_travel[idx],N_DECIMAL_SETTINGVALUE); break;
       }
     }
@@ -302,8 +301,8 @@ void report_gcode_modes()
     switch (gc_state.modal.program_flow) {
       case PROGRAM_FLOW_PAUSED : serial_write('0'); break;
       // case PROGRAM_FLOW_OPTIONAL_STOP : serial_write('1'); break; // M1 is ignored and not supported.
-      case PROGRAM_FLOW_COMPLETED_M2 : 
-      case PROGRAM_FLOW_COMPLETED_M30 : 
+      case PROGRAM_FLOW_COMPLETED_M2 :
+      case PROGRAM_FLOW_COMPLETED_M30 :
         print_uint8_base10(gc_state.modal.program_flow);
         break;
     }
@@ -316,24 +315,24 @@ void report_gcode_modes()
     case SPINDLE_DISABLE : serial_write('5'); break;
   }
 
+  report_util_gcode_modes_M();
   #ifdef ENABLE_M7
     if (gc_state.modal.coolant) { // Note: Multiple coolant states may be active at the same time.
-      if (gc_state.modal.coolant & PL_COND_FLAG_COOLANT_MIST) { report_util_gcode_modes_M(); serial_write('7'); }
-      if (gc_state.modal.coolant & PL_COND_FLAG_COOLANT_FLOOD) { report_util_gcode_modes_M(); serial_write('8'); }
-    } else { report_util_gcode_modes_M(); serial_write('9'); }
+      if (gc_state.modal.coolant & PL_COND_FLAG_COOLANT_MIST) { serial_write('7'); }
+      if (gc_state.modal.coolant & PL_COND_FLAG_COOLANT_FLOOD) { serial_write('8'); }
+    } else { serial_write('9'); }
   #else
-    report_util_gcode_modes_M();
     if (gc_state.modal.coolant) { serial_write('8'); }
     else { serial_write('9'); }
   #endif
 
   #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-    if (sys.override_ctrl == OVERRIDE_PARKING_MOTION) { 
+    if (sys.override_ctrl == OVERRIDE_PARKING_MOTION) {
       report_util_gcode_modes_M();
       print_uint8_base10(56);
     }
   #endif
-  
+
   printPgmString(PSTR(" T"));
   print_uint8_base10(gc_state.tool);
 
@@ -395,7 +394,7 @@ void report_build_info(char *line)
     serial_write('H');
   #endif
   #ifdef LIMITS_TWO_SWITCHES_ON_AXES
-    serial_write('T');
+    serial_write('L');
   #endif
   #ifdef ALLOW_FEED_OVERRIDE_DURING_PROBE_CYCLES
     serial_write('A');
@@ -438,7 +437,7 @@ void report_build_info(char *line)
   serial_write(',');
   print_uint8_base10(BLOCK_BUFFER_SIZE-1);
   serial_write(',');
-  print_uint8_base10(RX_BUFFER_SIZE);
+  print_uint32_base10(RXX_BUFFER_SIZE);
 
   report_util_feedback_line_feed();
 }
@@ -528,7 +527,7 @@ void report_realtime_status()
       printPgmString(PSTR("|Bf:"));
       print_uint8_base10(plan_get_block_buffer_available());
       serial_write(',');
-      print_uint8_base10(serial_get_rx_buffer_available());
+      print_uint32_base10(serial_get_rx_buffer_available());
     }
   #endif
 
@@ -556,7 +555,7 @@ void report_realtime_status()
     #else
       printPgmString(PSTR("|F:"));
       printFloat_RateValue(st_get_realtime_rate());
-    #endif      
+    #endif
   #endif
 
   #ifdef REPORT_FIELD_PIN_STATE
@@ -612,7 +611,7 @@ void report_realtime_status()
       if (sp_state || cl_state) {
         printPgmString(PSTR("|A:"));
         if (sp_state) { // != SPINDLE_STATE_DISABLE
-          #ifdef VARIABLE_SPINDLE 
+          #ifdef VARIABLE_SPINDLE
             #ifdef USE_SPINDLE_DIR_AS_ENABLE_PIN
               serial_write('S'); // CW
             #else
@@ -628,7 +627,7 @@ void report_realtime_status()
         #ifdef ENABLE_M7
           if (cl_state & COOLANT_STATE_MIST) { serial_write('M'); }
         #endif
-      }  
+      }
     }
   #endif
 
