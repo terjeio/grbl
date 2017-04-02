@@ -312,37 +312,3 @@ uint8_t system_check_travel_limits(float *target)
   return(false);
 }
 
-
-// Special handlers for setting and clearing Grbl's real-time execution flags.
-void system_set_exec_state_flag(uint8_t mask) {
-	hal.set_bits_atomic(&sys_rt_exec_state, mask);
-}
-
-void system_clear_exec_state_flag(uint8_t mask) {
-	hal.clear_bits_atomic(&sys_rt_exec_state, mask);
-}
-
-void system_set_exec_alarm(uint8_t code) {
-	// clear first?
-	hal.set_bits_atomic(&sys_rt_exec_alarm, code);
-}
-
-void system_clear_exec_alarm() {
-	hal.clear_bits_atomic(&sys_rt_exec_alarm, 0xFF);
-}
-
-void system_set_exec_motion_override_flag(uint8_t mask) {
-	hal.set_bits_atomic(&sys_rt_exec_motion_override, mask);
-}
-
-void system_set_exec_accessory_override_flag(uint8_t mask) {
-	hal.set_bits_atomic(&sys_rt_exec_accessory_override, mask);
-}
-
-void system_clear_exec_motion_overrides() {
-	hal.clear_bits_atomic(&sys_rt_exec_motion_override, 0xFF);
-}
-
-void system_clear_exec_accessory_overrides() {
-	hal.clear_bits_atomic(&sys_rt_exec_accessory_override, 0xFF);
-}

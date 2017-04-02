@@ -66,17 +66,19 @@ void spindle_stop()
 // G-code parser entry-point for setting spindle state. Forces a planner buffer sync and bails
 // if an abort or check-mode is active.
 #ifdef VARIABLE_SPINDLE
-  void spindle_sync(uint8_t state, float rpm)
-  {
-    if (sys.state == STATE_CHECK_MODE) { return; }
-    protocol_buffer_synchronize(); // Empty planner buffer to ensure spindle is set when programmed.
-    spindle_set_state(state,rpm);
-  }
+    void spindle_sync(uint8_t state, float rpm)
+    {
+        if (sys.state != STATE_CHECK_MODE) {
+            protocol_buffer_synchronize(); // Empty planner buffer to ensure spindle is set when programmed.
+            spindle_set_state(state,rpm);
+        }
+    }
 #else
-  void _spindle_sync(uint8_t state)
-  {
-    if (sys.state == STATE_CHECK_MODE) { return; }
-    protocol_buffer_synchronize(); // Empty planner buffer to ensure spindle is set when programmed.
-    _spindle_set_state(state);
-  }
+    void _spindle_sync(uint8_t state)
+    {
+        if (sys.state != STATE_CHECK_MODE) {
+            protocol_buffer_synchronize(); // Empty planner buffer to ensure spindle is set when programmed.
+            _spindle_set_state(state);
+        }
+    }
 #endif

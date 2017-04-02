@@ -277,8 +277,8 @@ void limits_soft_check(float *target)
     if (sys.state == STATE_CYCLE) {
       system_set_exec_state_flag(EXEC_FEED_HOLD);
       do {
-        protocol_execute_realtime();
-        if (sys.abort) { return; }
+        if(!protocol_execute_realtime())
+            return; // aborted!
       } while ( sys.state != STATE_IDLE );
     }
     mc_reset(); // Issue system reset and ensure spindle and coolant are shutdown.

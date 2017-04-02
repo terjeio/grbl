@@ -98,8 +98,8 @@ bool protocol_main_loop()
               system_set_exec_state_flag(EXEC_MOTION_CANCEL);
       } else if ((c == '\n') || (c == '\r')) { // End of line reached
 
-        protocol_execute_realtime(); // Runtime command check point.
-        if (sys.abort) { return !sys.exit; } // Bail to calling function upon system abort
+        if(!protocol_execute_realtime()) // Runtime command check point.
+            return !sys.exit;            // Bail to calling function upon system abort
 
         line[char_counter] = 0; // Set string termination character.
         #ifdef REPORT_ECHO_LINE_RECEIVED
@@ -183,8 +183,8 @@ bool protocol_main_loop()
     // completed. In either case, auto-cycle start, if enabled, any queued moves.
     protocol_auto_cycle_start();
 
-    protocol_execute_realtime();  // Runtime command check point.
-    if (sys.abort) { return !sys.exit; } // Bail to main() program loop to reset system.
+    if(!protocol_execute_realtime()) // Runtime command check point.
+        return !sys.exit;            // Bail to main() program loop to reset system.
   }
 
 //  return; /* Never reached */
@@ -198,8 +198,8 @@ void protocol_buffer_synchronize()
   // If system is queued, ensure cycle resumes if the auto start flag is present.
   protocol_auto_cycle_start();
   do {
-    protocol_execute_realtime();   // Check and execute run-time commands
-    if (sys.abort) { return; } // Check for system abort
+    if(!protocol_execute_realtime())   // Check and execute run-time commands
+         return;                       // Bail if system abort
   } while (plan_get_current_block() || (sys.state == STATE_CYCLE));
 }
 
@@ -229,14 +229,19 @@ void protocol_auto_cycle_start()
 // the same task, such as the planner recalculating the buffer upon a feedhold or overrides.
 // NOTE: The sys_rt_exec_state variable flags are set by any process, step or serial interrupts, pinouts,
 // limit switches, or the main program.
-void protocol_execute_realtime()
+// Returns false if aborted
+bool protocol_execute_realtime()
 {
   protocol_exec_rt_system();
 
   if(hal.execute_realtime)
 	  hal.execute_realtime(sys.state);
 
-  if (sys.suspend) { protocol_exec_rt_suspend(); }
+  if (sys.suspend)
+      protocol_exec_rt_suspend();
+
+  return !sys.abort;
+
 }
 
 

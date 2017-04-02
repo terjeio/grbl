@@ -23,8 +23,8 @@
 #define limits_h
 
 #define limits_get_state() hal.limits_get_state()
-#define limits_init() hal.limits_init();
-#define limits_disable() hal.limits_disable();
+#define limits_init() hal.limits_enable(true)
+#define limits_disable() hal.limits_enable(false)
 
 // Perform one portion of the homing cycle based on the input settings.
 void limits_go_home(uint8_t cycle_mask);

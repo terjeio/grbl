@@ -193,14 +193,15 @@ void system_convert_array_steps_to_mpos(float *position, int32_t *steps);
 uint8_t system_check_travel_limits(float *target);
 
 // Special handlers for setting and clearing Grbl's real-time execution flags.
-void system_set_exec_state_flag(uint8_t mask);
-void system_clear_exec_state_flag(uint8_t mask);
-void system_set_exec_alarm(uint8_t code);
-void system_clear_exec_alarm();
-void system_set_exec_motion_override_flag(uint8_t mask);
-void system_set_exec_accessory_override_flag(uint8_t mask);
-void system_clear_exec_motion_overrides();
-void system_clear_exec_accessory_overrides();
+#define system_set_exec_state_flag(mask) hal.set_bits_atomic(&sys_rt_exec_state, (mask))
+#define system_clear_exec_state_flag(mask) hal.clear_bits_atomic(&sys_rt_exec_state, (mask))
+#define system_set_exec_alarm(code) hal.set_bits_atomic(&sys_rt_exec_alarm, (code)) // clear first?
+#define system_clear_exec_alarm() hal.clear_bits_atomic(&sys_rt_exec_alarm, 0xFF)
+#define system_set_exec_motion_override_flag(mask) hal.set_bits_atomic(&sys_rt_exec_motion_override, (mask))
+#define system_set_exec_accessory_override_flag(mask) hal.set_bits_atomic(&sys_rt_exec_accessory_override, (mask))
+#define system_clear_exec_motion_overrides() hal.clear_bits_atomic(&sys_rt_exec_motion_override, 0xFF)
+#define system_clear_exec_accessory_overrides()  hal.clear_bits_atomic(&sys_rt_exec_accessory_override, 0xFF)
+
 
 void control_interrupt_handler (uint8_t pin);
 

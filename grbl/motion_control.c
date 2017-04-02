@@ -58,8 +58,8 @@ void mc_line(float *target, plan_line_data_t *pl_data)
   // If the buffer is full: good! That means we are well ahead of the robot.
   // Remain in this loop until there is room in the buffer.
   do {
-    protocol_execute_realtime(); // Check for any run-time commands
-    if (sys.abort) { return; } // Bail, if system abort.
+    if(!protocol_execute_realtime()) // Check for any run-time commands
+        return;                      // Bail, if system abort.
     if ( plan_check_full_buffer() ) { protocol_auto_cycle_start(); } // Auto-cycle start when buffer is full.
     else { break; }
   } while (1);
@@ -229,8 +229,8 @@ void mc_homing_cycle(uint8_t cycle_mask)
     #endif
   }
 
-  protocol_execute_realtime(); // Check for reset and set system abort.
-  if (sys.abort) { return; } // Did not complete. Alarm state set by mc_alarm.
+  if(!protocol_execute_realtime()) // Check for reset and set system abort.
+    return;                        // Did not complete. Alarm state set by mc_alarm.
 
   // Homing cycle complete! Setup system for normal operation.
   // -------------------------------------------------------------------------------------
@@ -279,8 +279,8 @@ uint8_t mc_probe_cycle(float *target, plan_line_data_t *pl_data, uint8_t parser_
   // Perform probing cycle. Wait here until probe is triggered or motion completes.
   system_set_exec_state_flag(EXEC_CYCLE_START);
   do {
-    protocol_execute_realtime();
-    if (sys.abort) { return(GC_PROBE_ABORT); } // Check for system abort
+    if(!protocol_execute_realtime()) // Check for system abort
+        return GC_PROBE_ABORT;
   } while (sys.state != STATE_IDLE);
 
   // Probing cycle complete!

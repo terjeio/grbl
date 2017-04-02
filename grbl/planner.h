@@ -136,12 +136,8 @@ void plan_cycle_reinitialize();
 // Returns the number of available blocks are in the planner buffer.
 uint8_t plan_get_block_buffer_available();
 
-// Returns the number of active blocks are in the planner buffer.
-// NOTE: Deprecated. Not used unless classic status reports are enabled in config.h
-uint8_t plan_get_block_buffer_count();
-
 // Returns the status of the block ring buffer. True, if buffer is full.
-uint8_t plan_check_full_buffer();
+bool plan_check_full_buffer();
 
 void plan_get_planner_mpos(float *target);
 

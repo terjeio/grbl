@@ -41,7 +41,7 @@ static planner_t pl;
 
 
 // Returns the index of the next block in the ring buffer. Also called by stepper segment buffer.
-uint8_t plan_next_block_index(uint8_t block_index)
+inline uint8_t plan_next_block_index(uint8_t block_index)
 {
   block_index++;
   if (block_index == BLOCK_BUFFER_SIZE) { block_index = 0; }
@@ -50,7 +50,7 @@ uint8_t plan_next_block_index(uint8_t block_index)
 
 
 // Returns the index of the previous block in the ring buffer
-static uint8_t plan_prev_block_index(uint8_t block_index)
+inline static uint8_t plan_prev_block_index(uint8_t block_index)
 {
   if (block_index == 0) { block_index = BLOCK_BUFFER_SIZE; }
   block_index--;
@@ -231,32 +231,29 @@ plan_block_t *plan_get_system_motion_block()
 
 
 // Returns address of first planner block, if available. Called by various main program functions.
-plan_block_t *plan_get_current_block()
+inline plan_block_t *plan_get_current_block()
 {
-  if (block_buffer_head == block_buffer_tail) { return(NULL); } // Buffer empty
-  return(&block_buffer[block_buffer_tail]);
+    return block_buffer_head == block_buffer_tail ? NULL : &block_buffer[block_buffer_tail];
 }
 
 
-float plan_get_exec_block_exit_speed_sqr()
+inline float plan_get_exec_block_exit_speed_sqr()
 {
   uint8_t block_index = plan_next_block_index(block_buffer_tail);
-  if (block_index == block_buffer_head) { return( 0.0f ); }
-  return( block_buffer[block_index].entry_speed_sqr );
+  return block_index == block_buffer_head ? 0.0f : block_buffer[block_index].entry_speed_sqr;
 }
 
 
 // Returns the availability status of the block ring buffer. True, if full.
-uint8_t plan_check_full_buffer()
+inline bool plan_check_full_buffer()
 {
-  if (block_buffer_tail == next_buffer_head) { return(true); }
-  return(false);
+  return block_buffer_tail == next_buffer_head;
 }
 
 
 // Computes and returns block nominal speed based on running condition and override values.
 // NOTE: All system motion commands, such as homing/parking, are not subject to overrides.
-float plan_compute_profile_nominal_speed(plan_block_t *block)
+inline float plan_compute_profile_nominal_speed(plan_block_t *block)
 {
   float nominal_speed = block->programmed_rate;
   if (block->condition & PL_COND_FLAG_RAPID_MOTION) { nominal_speed *= (0.01f*sys.r_override); }
@@ -264,19 +261,18 @@ float plan_compute_profile_nominal_speed(plan_block_t *block)
     if (!(block->condition & PL_COND_FLAG_NO_FEED_OVERRIDE)) { nominal_speed *= (0.01f*sys.f_override); }
     if (nominal_speed > block->rapid_rate) { nominal_speed = block->rapid_rate; }
   }
-  if (nominal_speed > MINIMUM_FEED_RATE) { return(nominal_speed); }
-  return(MINIMUM_FEED_RATE);
+  return nominal_speed > MINIMUM_FEED_RATE ? nominal_speed : MINIMUM_FEED_RATE;
 }
 
 
 // Computes and updates the max entry speed (sqr) of the block, based on the minimum of the junction's
 // previous and current nominal speeds and max junction speed.
-static void plan_compute_profile_parameters(plan_block_t *block, float nominal_speed, float prev_nominal_speed)
+inline static void plan_compute_profile_parameters(plan_block_t *block, float nominal_speed, float prev_nominal_speed)
 {
   // Compute the junction maximum entry based on the minimum of the junction speed and neighboring nominal speeds.
-  if (nominal_speed > prev_nominal_speed) { block->max_entry_speed_sqr = prev_nominal_speed*prev_nominal_speed; }
-  else { block->max_entry_speed_sqr = nominal_speed*nominal_speed; }
-  if (block->max_entry_speed_sqr > block->max_junction_speed_sqr) { block->max_entry_speed_sqr = block->max_junction_speed_sqr; }
+    block->max_entry_speed_sqr = nominal_speed > prev_nominal_speed ? (prev_nominal_speed * prev_nominal_speed) : (nominal_speed * nominal_speed);
+    if (block->max_entry_speed_sqr > block->max_junction_speed_sqr)
+        block->max_entry_speed_sqr = block->max_junction_speed_sqr;
 }
 
 
@@ -497,17 +493,7 @@ void plan_sync_position()
 // Returns the number of available blocks are in the planner buffer.
 uint8_t plan_get_block_buffer_available()
 {
-  if (block_buffer_head >= block_buffer_tail) { return((BLOCK_BUFFER_SIZE-1)-(block_buffer_head-block_buffer_tail)); }
-  return((block_buffer_tail-block_buffer_head-1));
-}
-
-
-// Returns the number of active blocks are in the planner buffer.
-// NOTE: Deprecated. Not used unless classic status reports are enabled in config.h
-uint8_t plan_get_block_buffer_count()
-{
-  if (block_buffer_head >= block_buffer_tail) { return(block_buffer_head-block_buffer_tail); }
-  return(BLOCK_BUFFER_SIZE - (block_buffer_tail-block_buffer_head));
+    return block_buffer_head >= block_buffer_tail ? ((BLOCK_BUFFER_SIZE - 1) - (block_buffer_head - block_buffer_tail)) : (block_buffer_tail - block_buffer_head - 1);
 }
 
 

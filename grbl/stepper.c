@@ -452,11 +452,12 @@ void st_update_plan_block_parameters()
 
 
 // Increments the step segment buffer block data ring buffer.
-static uint8_t st_next_block_index(uint8_t block_index)
+inline static uint8_t st_next_block_index(uint8_t block_index)
 {
-  block_index++;
-  if ( block_index == (SEGMENT_BUFFER_SIZE-1) ) { return(0); }
-  return(block_index);
+//  block_index++;
+//  if ( block_index == (SEGMENT_BUFFER_SIZE-1) ) { return(0); }
+//  return(block_index);
+  return ++block_index == (SEGMENT_BUFFER_SIZE - 1) ? 0 : block_index;
 }
 
 
@@ -625,9 +626,8 @@ void st_prep_buffer()
         }
 
         nominal_speed = plan_compute_profile_nominal_speed(pl_block);
-				float nominal_speed_sqr = nominal_speed*nominal_speed;
-				float intersect_distance =
-								0.5f*(pl_block->millimeters+inv_2_accel*(pl_block->entry_speed_sqr-exit_speed_sqr));
+		float nominal_speed_sqr = nominal_speed*nominal_speed;
+		float intersect_distance = 0.5f*(pl_block->millimeters+inv_2_accel*(pl_block->entry_speed_sqr-exit_speed_sqr));
 
         if (pl_block->entry_speed_sqr > nominal_speed_sqr) { // Only occurs during override reductions.
           prep.accelerate_until = pl_block->millimeters - inv_2_accel*(pl_block->entry_speed_sqr-nominal_speed_sqr);
@@ -928,8 +928,5 @@ void st_prep_buffer()
 // divided by the ACCELERATION TICKS PER SECOND in seconds.
 float st_get_realtime_rate()
 {
-  if (sys.state & (STATE_CYCLE | STATE_HOMING | STATE_HOLD | STATE_JOG | STATE_SAFETY_DOOR)){
-    return prep.current_speed;
-  }
-  return 0.0f;
+  return sys.state & (STATE_CYCLE | STATE_HOMING | STATE_HOLD | STATE_JOG | STATE_SAFETY_DOOR) ? prep.current_speed : 0.0f;
 }

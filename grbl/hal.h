@@ -39,8 +39,7 @@ typedef struct HAL {
 	uint32_t f_step_timer;
 	void (*initMCU)(void);
 	bool (*releaseMCU)(void);
-	void (*limits_init)(void);
-	void (*limits_disable)(void);
+    void (*limits_enable)(bool on);
 	uint8_t (*limits_get_state)(void);
 	void (*coolant_set_state)(uint8_t mode);
 	uint8_t (*coolant_get_state)(void);
