@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define F_CPU 20000000 // really ticks per counter increment
+#define F_STEPTIMER 20000000 // stepper ISR timer clock frequency TODO: use hal.f_step_timer?
 
 //#define bit_true_atomic(var, bit) HWREGBITW(&var, bit) = 1;
 //#define bit_false_atomic(var, bit) HWREGBITW(&var, bit) = 0;
@@ -62,6 +62,7 @@ typedef struct HAL {
 	uint16_t (*serial_get_rx_buffer_size)(void);
 	uint16_t (*serial_get_rx_buffer_available)(void);
 	void (*serial_write)(uint8_t data);
+    void (*serial_write_string)(const char *s);
 	int32_t (*serial_read)(void);
 	void (*serial_reset_read_buffer)(void);
 	void (*serial_cancel_read_buffer)(void);

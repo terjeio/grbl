@@ -26,7 +26,8 @@
 void printString(const char *s);
 
 #define PSTR(s) ((const char *)(s))
-#define printPgmString(s) printString(s)
+#define printString(s) hal.serial_write_string(s)
+#define printPgmString(s) hal.serial_write_string(s)
 
 void printInteger(long n);
 
@@ -34,9 +35,6 @@ void print_uint32_base10(uint32_t n);
 
 // Prints uint8 variable with base and number of desired digits.
 void print_unsigned_int8(uint8_t n, uint8_t base, uint8_t digits);
-
-// Prints an uint8 variable in base 2.
-void print_uint8_base2(uint8_t n);
 
 // Prints an uint8 variable in base 10.
 void print_uint8_base10(uint8_t n);

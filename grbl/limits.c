@@ -138,11 +138,9 @@ void limits_go_home(uint8_t cycle_mask)
         // Set target direction based on cycle mask and homing cycle approach state.
         // NOTE: This happens to compile smaller than any other implementation tried.
         if (bit_istrue(settings.homing_dir_mask,bit(idx))) {
-          if (approach) { target[idx] = -max_travel; }
-          else { target[idx] = max_travel; }
+            target[idx] = approach ? - max_travel : max_travel;
         } else {
-          if (approach) { target[idx] = max_travel; }
-          else { target[idx] = -max_travel; }
+            target[idx] = approach ? max_travel : - max_travel;
         }
         // Apply axislock to the step port pins active in this cycle.
         axislock |= step_pin[idx];
@@ -284,6 +282,5 @@ void limits_soft_check(float *target)
     mc_reset(); // Issue system reset and ensure spindle and coolant are shutdown.
     system_set_exec_alarm(EXEC_ALARM_SOFT_LIMIT); // Indicate soft limit critical event
     protocol_execute_realtime(); // Execute to enter critical event loop and system abort
-    return;
   }
 }

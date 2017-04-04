@@ -305,9 +305,8 @@ uint8_t mc_probe_cycle(float *target, plan_line_data_t *pl_data, uint8_t parser_
     // All done! Output the probe position as message.
     report_probe_parameters();
   #endif
-
-  if (sys.probe_succeeded) { return(GC_PROBE_FOUND); } // Successful probe cycle.
-  else { return(GC_PROBE_FAIL_END); } // Failed to trigger probe within travel. With or without error.
+    // Successful probe cycle or Failed to trigger probe within travel. With or without error.
+  return sys.probe_succeeded ? GC_PROBE_FOUND : GC_PROBE_FAIL_END;
 }
 
 

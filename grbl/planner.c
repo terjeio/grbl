@@ -43,18 +43,14 @@ static planner_t pl;
 // Returns the index of the next block in the ring buffer. Also called by stepper segment buffer.
 inline uint8_t plan_next_block_index(uint8_t block_index)
 {
-  block_index++;
-  if (block_index == BLOCK_BUFFER_SIZE) { block_index = 0; }
-  return(block_index);
+  return block_index == (BLOCK_BUFFER_SIZE - 1) ? 0 : block_index + 1;
 }
 
 
 // Returns the index of the previous block in the ring buffer
 inline static uint8_t plan_prev_block_index(uint8_t block_index)
 {
-  if (block_index == 0) { block_index = BLOCK_BUFFER_SIZE; }
-  block_index--;
-  return(block_index);
+  return block_index == 0 ? (BLOCK_BUFFER_SIZE - 1) : block_index - 1;
 }
 
 
@@ -196,19 +192,19 @@ static void planner_recalculate()
 }
 
 
-void plan_reset()
-{
-  memset(&pl, 0, sizeof(planner_t)); // Clear planner struct
-  plan_reset_buffer();
-}
-
-
-void plan_reset_buffer()
+inline static void plan_reset_buffer()
 {
   block_buffer_tail = 0;
   block_buffer_head = 0; // Empty = tail
   next_buffer_head = 1; // plan_next_block_index(block_buffer_head)
   block_buffer_planned = 0; // = block_buffer_tail;
+}
+
+
+void plan_reset()
+{
+  memset(&pl, 0, sizeof(planner_t)); // Clear planner struct
+  plan_reset_buffer();
 }
 
 

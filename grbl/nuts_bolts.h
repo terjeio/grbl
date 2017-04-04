@@ -22,8 +22,10 @@
 #ifndef nuts_bolts_h
 #define nuts_bolts_h
 
+#ifndef true
 #define false 0
 #define true 1
+#endif
 
 #define SOME_LARGE_VALUE 1.0E+38f
 #define M_PI 3.14159265358979323846f
@@ -49,7 +51,6 @@
 // Conversions
 #define MM_PER_INCH (25.40f)
 #define INCH_PER_MM (0.0393701f)
-#define TICKS_PER_MICROSECOND (F_CPU/1000000)
 
 #define DELAY_MODE_DWELL       0
 #define DELAY_MODE_SYS_SUSPEND 1
@@ -66,19 +67,23 @@
 #define bit(n) (1 << n)
 #define bit_true(x,mask) (x) |= (mask)
 #define bit_false(x,mask) (x) &= ~(mask)
+#define bit_set(x, bit, v) { if (v) { x |= (bit); } else { x &= ~(bit); } }
+//#define bit_set(x, y, z) HWREGBITW(&x, y) = z;
+
 #define bit_istrue(x,mask) ((x & mask) != 0)
 #define bit_isfalse(x,mask) ((x & mask) == 0)
 
 // Read a floating point value from a string. Line points to the input buffer, char_counter
 // is the indexer pointing to the current character of the line, while float_ptr is
 // a pointer to the result variable. Returns true when it succeeds
-uint8_t read_float(char *line, uint8_t *char_counter, float *float_ptr);
+bool read_float(char *line, uint8_t *char_counter, float *float_ptr);
 
 // Non-blocking delay function used for general operation and suspend features.
 void delay_sec(float seconds, uint8_t mode);
 
 // Computes hypotenuse, avoiding avr-gcc's bloated version and the extra error checking.
 float hypot_f(float x, float y);
+//#define hypot_f(x, y) sqrt(((x)*(x)) + ((y)*(y)))
 
 float convert_delta_vector_to_unit_vector(float *vector);
 float limit_value_by_axis_maximum(float *max_value, float *unit_vec);

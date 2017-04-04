@@ -98,7 +98,7 @@ typedef struct {
 
 // Initialize and reset the motion plan subsystem
 void plan_reset(); // Reset all
-void plan_reset_buffer(); // Reset buffer only.
+//void plan_reset_buffer(); // Reset buffer only.
 
 // Add a new linear movement to the buffer. target[N_AXIS] is the signed, absolute target position
 // in millimeters. Feed rate specifies the speed of the motion. If feed rate is inverted, the feed

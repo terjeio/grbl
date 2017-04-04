@@ -106,13 +106,11 @@ uint8_t gc_execute_line(char *line)
      words, and for negative values set for the value words F, N, P, T, and S. */
 
   uint8_t word_bit; // Bit-value for assigning tracking variables
-  uint8_t char_counter;
+  uint8_t char_counter = gc_parser_flags & GC_PARSER_JOG_MOTION ? 3 /* Start parsing after `$J=` */ : 0;
   char letter;
   float value;
   uint8_t int_value = 0;
   uint16_t mantissa = 0;
-  if (gc_parser_flags & GC_PARSER_JOG_MOTION) { char_counter = 3; } // Start parsing after `$J=`
-  else { char_counter = 0; }
 
   while (line[char_counter] != 0) { // Loop until no more g-code words in line.
 
@@ -747,9 +745,9 @@ uint8_t gc_execute_line(char *line)
 
             // First, use h_x2_div_d to compute 4*h^2 to check if it is negative or r is smaller
             // than d. If so, the sqrt of a negative number is complex and error out.
-            float h_x2_div_d = 4.0 * gc_block.values.r*gc_block.values.r - x*x - y*y;
+            float h_x2_div_d = 4.0f * gc_block.values.r*gc_block.values.r - x*x - y*y;
 
-            if (h_x2_div_d < 0) { FAIL(STATUS_GCODE_ARC_RADIUS_ERROR); } // [Arc radius error]
+            if (h_x2_div_d < 0.0f) { FAIL(STATUS_GCODE_ARC_RADIUS_ERROR); } // [Arc radius error]
 
             // Finish computing h_x2_div_d.
             h_x2_div_d = -sqrt(h_x2_div_d)/hypot_f(x,y); // == -(h * 2 / d)
@@ -780,8 +778,8 @@ uint8_t gc_execute_line(char *line)
                 gc_block.values.r = -gc_block.values.r; // Finished with r. Set to positive for mc_arc
             }
             // Complete the operation by calculating the actual center of the arc
-            gc_block.values.ijk[axis_0] = 0.5*(x-(y*h_x2_div_d));
-            gc_block.values.ijk[axis_1] = 0.5*(y+(x*h_x2_div_d));
+            gc_block.values.ijk[axis_0] = 0.5f*(x-(y*h_x2_div_d));
+            gc_block.values.ijk[axis_1] = 0.5f*(y+(x*h_x2_div_d));
 
           } else { // Arc Center Format Offset Mode
             if (!(ijk_words & (bit(axis_0)|bit(axis_1)))) { FAIL(STATUS_GCODE_NO_OFFSETS_IN_PLANE); } // [No offsets in plane]
@@ -804,9 +802,9 @@ uint8_t gc_execute_line(char *line)
 
             // Compute difference between current location and target radii for final error-checks.
             float delta_r = fabs(target_r-gc_block.values.r);
-            if (delta_r > 0.005) {
-              if (delta_r > 0.5) { FAIL(STATUS_GCODE_INVALID_TARGET); } // [Arc definition error] > 0.5mm
-              if (delta_r > (0.001*gc_block.values.r)) { FAIL(STATUS_GCODE_INVALID_TARGET); } // [Arc definition error] > 0.005mm AND 0.1% radius
+            if (delta_r > 0.005f) {
+              if (delta_r > 0.5f) { FAIL(STATUS_GCODE_INVALID_TARGET); } // [Arc definition error] > 0.5mm
+              if (delta_r > (0.001f*gc_block.values.r)) { FAIL(STATUS_GCODE_INVALID_TARGET); } // [Arc definition error] > 0.005mm AND 0.1% radius
             }
           }
           break;

@@ -473,8 +473,7 @@ void report_realtime_status()
     case STATE_HOLD:
       if (!(sys.suspend & SUSPEND_JOG_CANCEL)) {
         printPgmString(PSTR("Hold:"));
-        if (sys.suspend & SUSPEND_HOLD_COMPLETE) { serial_write('0'); } // Ready to resume
-        else { serial_write('1'); } // Actively holding
+        serial_write(sys.suspend & SUSPEND_HOLD_COMPLETE ? '0' /*Ready to resume*/ : '1' /*Actively holding*/ );
         break;
       } // Continues to print jog state during jog cancel.
     case STATE_JOG: printPgmString(PSTR("Jog")); break;
@@ -487,11 +486,7 @@ void report_realtime_status()
         serial_write('3'); // Restoring
       } else {
         if (sys.suspend & SUSPEND_RETRACT_COMPLETE) {
-          if (sys.suspend & SUSPEND_SAFETY_DOOR_AJAR) {
-            serial_write('1'); // Door ajar
-          } else {
-            serial_write('0');
-          } // Door closed and ready to resume
+            serial_write(sys.suspend & SUSPEND_SAFETY_DOOR_AJAR ? '1' /*Door ajar*/ : '0' /*Door closed and ready to resume*/);
         } else {
           serial_write('2'); // Retracting
         }
@@ -615,12 +610,10 @@ void report_realtime_status()
             #ifdef USE_SPINDLE_DIR_AS_ENABLE_PIN
               serial_write('S'); // CW
             #else
-              if (sp_state == SPINDLE_STATE_CW) { serial_write('S'); } // CW
-              else { serial_write('C'); } // CCW
+              serial_write(sp_state == SPINDLE_STATE_CW ? 'S' /*CW*/ : 'C' /*CCW*/);
             #endif
           #else
-            if (sp_state & SPINDLE_STATE_CW) { serial_write('S'); } // CW
-            else { serial_write('C'); } // CCW
+            serial_write(sp_state == SPINDLE_STATE_CW ? 'S' /*CW*/ : 'C' /*CCW*/);
           #endif
         }
         if (cl_state & COOLANT_STATE_FLOOD) { serial_write('F'); }

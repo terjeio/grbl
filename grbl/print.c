@@ -21,12 +21,7 @@
 
 #include "grbl.h"
 
-
-void printString(const char *s)
-{
-  while (*s)
-    serial_write(*s++);
-}
+static unsigned char buf[10];
 
 // void printIntegerInBase(unsigned long n, unsigned long base)
 // {
@@ -53,7 +48,7 @@ void printString(const char *s)
 // Prints an uint8 variable with base and number of desired digits.
 void print_unsigned_int8(uint8_t n, uint8_t base, uint8_t digits)
 {
-  unsigned char buf[digits];
+
   uint8_t i = 0;
 
   for (; i < digits; i++) {
@@ -61,25 +56,18 @@ void print_unsigned_int8(uint8_t n, uint8_t base, uint8_t digits)
       n /= base;
   }
 
-  for (; i > 0; i--)
-      serial_write('0' + buf[i - 1]);
-}
+  while(i)
+      serial_write('0' + buf[--i]);
 
-
-// Prints an uint8 variable in base 2.
-void print_uint8_base2(uint8_t n) {
-  print_unsigned_int8(n,2,8);
+ // for (; i > 0; i--)
+ //     serial_write('0' + buf[i - 1]);
 }
 
 
 // Prints an uint8 variable in base 10.
 void print_uint8_base10(uint8_t n)
 {
-  uint8_t digits;
-  if (n < 10) { digits = 1; }
-  else if (n < 100) { digits = 2; }
-  else { digits = 3; }
-  print_unsigned_int8(n,10,digits);
+  print_unsigned_int8(n, 10, n < 10 ? 1 : (n < 100 ? 2 : 3));
 }
 
 
@@ -90,7 +78,6 @@ void print_uint32_base10(uint32_t n)
     return;
   }
 
-  unsigned char buf[10];
   uint8_t i = 0;
 
   while (n > 0) {
@@ -98,8 +85,11 @@ void print_uint32_base10(uint32_t n)
     n /= 10;
   }
 
-  for (; i > 0; i--)
-	  serial_write('0' + buf[i-1]);
+  while(i)
+      serial_write('0' + buf[--i]);
+
+//  for (; i > 0; i--)
+//	  serial_write('0' + buf[i-1]);
 }
 
 
@@ -121,21 +111,20 @@ void printInteger(long n)
 // techniques are actually just slightly slower. Found this out the hard way.
 void printFloat(float n, uint8_t decimal_places)
 {
-  if (n < 0) {
-	  serial_write('-');
-    n = -n;
+  if (n < 0.0f) {
+      serial_write('-');
+      n = -n;
   }
 
   uint8_t decimals = decimal_places;
   while (decimals >= 2) { // Quickly convert values expected to be E0 to E-4.
-    n *= 100;
+    n *= 100.0f;
     decimals -= 2;
   }
-  if (decimals) { n *= 10; }
-  n += 0.5; // Add rounding factor. Ensures carryover through entire value.
+  if (decimals) { n *= 10.0f; }
+  n += 0.5f; // Add rounding factor. Ensures carryover through entire value.
 
   // Generate digits backwards and store in string.
-  unsigned char buf[10];
   uint8_t i = 0;
   uint32_t a = (long)n;
   buf[decimal_places] = '.'; // Place decimal point, even if decimal places are zero.
@@ -152,9 +141,12 @@ void printFloat(float n, uint8_t decimal_places)
     buf[i++] = '0';
   }
 
+  while(i)
+      serial_write(buf[--i]);
+
   // Print the generated string.
-  for (; i > 0; i--)
-	  serial_write(buf[i-1]);
+//  for (; i > 0; i--)
+//	  serial_write(buf[i-1]);
 }
 
 

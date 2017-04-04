@@ -82,14 +82,22 @@ void settings_restore(uint8_t restore_flag) {
 	    settings.homing_pulloff = DEFAULT_HOMING_PULLOFF;
 
 	    settings.flags = 0;
-	    if (DEFAULT_REPORT_INCHES) { settings.flags |= BITFLAG_REPORT_INCHES; }
-	    if (DEFAULT_LASER_MODE) { settings.flags |= BITFLAG_LASER_MODE; }
-	    if (DEFAULT_INVERT_ST_ENABLE) { settings.flags |= BITFLAG_INVERT_ST_ENABLE; }
-	    if (DEFAULT_HARD_LIMIT_ENABLE) { settings.flags |= BITFLAG_HARD_LIMIT_ENABLE; }
-	    if (DEFAULT_HOMING_ENABLE) { settings.flags |= BITFLAG_HOMING_ENABLE; }
-	    if (DEFAULT_SOFT_LIMIT_ENABLE) { settings.flags |= BITFLAG_SOFT_LIMIT_ENABLE; }
-	    if (DEFAULT_INVERT_LIMIT_PINS) { settings.flags |= BITFLAG_INVERT_LIMIT_PINS; }
-	    if (DEFAULT_INVERT_PROBE_PIN) { settings.flags |= BITFLAG_INVERT_PROBE_PIN; }
+	    if (DEFAULT_REPORT_INCHES)
+	        bit_set(settings.flags, BITFLAG_REPORT_INCHES, DEFAULT_REPORT_INCHES);
+	    if (DEFAULT_LASER_MODE)
+            bit_true(settings.flags, BITFLAG_LASER_MODE);
+	    if (DEFAULT_INVERT_ST_ENABLE)
+            bit_true(settings.flags, BITFLAG_INVERT_ST_ENABLE);
+	    if (DEFAULT_HARD_LIMIT_ENABLE)
+            bit_true(settings.flags, BITFLAG_HARD_LIMIT_ENABLE);
+	    if (DEFAULT_HOMING_ENABLE)
+            bit_true(settings.flags, BITFLAG_HOMING_ENABLE);
+	    if (DEFAULT_SOFT_LIMIT_ENABLE)
+            bit_true(settings.flags, BITFLAG_SOFT_LIMIT_ENABLE);
+	    if (DEFAULT_INVERT_LIMIT_PINS)
+            bit_true(settings.flags, BITFLAG_INVERT_LIMIT_PINS);
+	    if (DEFAULT_INVERT_PROBE_PIN)
+            bit_true(settings.flags, BITFLAG_INVERT_PROBE_PIN);
 
 	    settings.steps_per_mm[X_AXIS] = DEFAULT_X_STEPS_PER_MM;
 	    settings.steps_per_mm[Y_AXIS] = DEFAULT_Y_STEPS_PER_MM;
@@ -213,7 +221,8 @@ uint8_t settings_store_global_setting(uint8_t parameter, float value) {
     uint8_t int_value = trunc(value);
     switch(parameter) {
       case 0:
-        if (int_value < 3) { return(STATUS_SETTING_STEP_PULSE_MIN); }
+        if (int_value < 3)
+            return(STATUS_SETTING_STEP_PULSE_MIN);
         settings.pulse_microseconds = int_value; break;
       case 1: settings.stepper_idle_lock_time = int_value; break;
       case 2:
@@ -225,43 +234,35 @@ uint8_t settings_store_global_setting(uint8_t parameter, float value) {
 //        st_generate_step_dir_invert_masks(); // Regenerate step and direction port invert masks.
         break;
       case 4: // Reset to ensure change. Immediate re-init may cause problems.
-        if (int_value) { settings.flags |= BITFLAG_INVERT_ST_ENABLE; }
-        else { settings.flags &= ~BITFLAG_INVERT_ST_ENABLE; }
+        bit_set(settings.flags, BITFLAG_INVERT_ST_ENABLE, int_value);
         break;
       case 5: // Reset to ensure change. Immediate re-init may cause problems.
-        if (int_value) { settings.flags |= BITFLAG_INVERT_LIMIT_PINS; }
-        else { settings.flags &= ~BITFLAG_INVERT_LIMIT_PINS; }
+        bit_set(settings.flags, BITFLAG_INVERT_LIMIT_PINS, int_value);
         break;
       case 6: // Reset to ensure change. Immediate re-init may cause problems.
-        if (int_value) { settings.flags |= BITFLAG_INVERT_PROBE_PIN; }
-        else { settings.flags &= ~BITFLAG_INVERT_PROBE_PIN; }
+        bit_set(settings.flags, BITFLAG_INVERT_PROBE_PIN, int_value);
         probe_configure_invert_mask(false);
         break;
       case 10: settings.status_report_mask = int_value; break;
       case 11: settings.junction_deviation = value; break;
       case 12: settings.arc_tolerance = value; break;
       case 13:
-        if (int_value) { settings.flags |= BITFLAG_REPORT_INCHES; }
-        else { settings.flags &= ~BITFLAG_REPORT_INCHES; }
+        bit_set(settings.flags, BITFLAG_REPORT_INCHES, int_value);
         system_flag_wco_change(); // Make sure WCO is immediately updated.
         break;
       case 20:
-        if (int_value) {
-          if (bit_isfalse(settings.flags, BITFLAG_HOMING_ENABLE)) { return(STATUS_SOFT_LIMIT_ERROR); }
-          settings.flags |= BITFLAG_SOFT_LIMIT_ENABLE;
-        } else { settings.flags &= ~BITFLAG_SOFT_LIMIT_ENABLE; }
+        if (int_value && bit_isfalse(settings.flags, BITFLAG_HOMING_ENABLE))
+            return(STATUS_SOFT_LIMIT_ERROR);
+        bit_set(settings.flags, BITFLAG_SOFT_LIMIT_ENABLE, int_value);
         break;
       case 21:
-        if (int_value) { settings.flags |= BITFLAG_HARD_LIMIT_ENABLE; }
-        else { settings.flags &= ~BITFLAG_HARD_LIMIT_ENABLE; }
+        bit_set(settings.flags, BITFLAG_HARD_LIMIT_ENABLE, int_value);
         limits_init(); // Re-init to immediately change. NOTE: Nice to have but could be problematic later.
         break;
       case 22:
-        if (int_value) { settings.flags |= BITFLAG_HOMING_ENABLE; }
-        else {
-          settings.flags &= ~BITFLAG_HOMING_ENABLE;
-          settings.flags &= ~BITFLAG_SOFT_LIMIT_ENABLE; // Force disable soft-limits.
-        }
+        bit_set(settings.flags, BITFLAG_HOMING_ENABLE, int_value);
+        if (!int_value)
+            bit_false(settings.flags, BITFLAG_SOFT_LIMIT_ENABLE); // Force disable soft-limits.
         break;
       case 23: settings.homing_dir_mask = int_value; break;
       case 24: settings.homing_feed_rate = value; break;
@@ -272,8 +273,7 @@ uint8_t settings_store_global_setting(uint8_t parameter, float value) {
       case 31: settings.rpm_min = value; // spindle_init(); break; // Re-initialize spindle rpm calibration
       case 32:
         #ifdef VARIABLE_SPINDLE
-          if (int_value) { settings.flags |= BITFLAG_LASER_MODE; }
-          else { settings.flags &= ~BITFLAG_LASER_MODE; }
+          bit_set(settings.flags, BITFLAG_LASER_MODE, int_value);
         #else
           return(STATUS_SETTING_DISABLED_LASER);
         #endif

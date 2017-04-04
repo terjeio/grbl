@@ -48,9 +48,9 @@
 #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
 	#define MAX_AMASS_LEVEL 3
 	// AMASS_LEVEL0: Normal operation. No AMASS. No upper cutoff frequency. Starts at LEVEL1 cutoff frequency.
-	#define AMASS_LEVEL1 (F_CPU/8000) // Over-drives ISR (x2). Defined as F_CPU/(Cutoff frequency in Hz)
-	#define AMASS_LEVEL2 (F_CPU/4000) // Over-drives ISR (x4)
-	#define AMASS_LEVEL3 (F_CPU/2000) // Over-drives ISR (x8)
+	#define AMASS_LEVEL1 (F_STEPTIMER/8000) // Over-drives ISR (x2). Defined as F_CPU/(Cutoff frequency in Hz)
+	#define AMASS_LEVEL2 (F_STEPTIMER/4000) // Over-drives ISR (x4)
+	#define AMASS_LEVEL3 (F_STEPTIMER/2000) // Over-drives ISR (x8)
 
   #if MAX_AMASS_LEVEL <= 0
     error "AMASS must have 1 or more levels to operate correctly."
@@ -525,8 +525,9 @@ void st_prep_buffer()
     if (pl_block == NULL) {
 
       // Query planner for a queued block
-      if (sys.step_control & STEP_CONTROL_EXECUTE_SYS_MOTION) { pl_block = plan_get_system_motion_block(); }
-      else { pl_block = plan_get_current_block(); }
+
+      pl_block = sys.step_control & STEP_CONTROL_EXECUTE_SYS_MOTION ? plan_get_system_motion_block() : plan_get_current_block();
+
       if (pl_block == NULL) { return; } // No planner blocks. Exit.
 
       // Check if we need to only recompute the velocity profile or load a new block.
@@ -738,8 +739,7 @@ void st_prep_buffer()
             // Acceleration-cruise, acceleration-deceleration ramp junction, or end of block.
             mm_remaining = prep.accelerate_until; // NOTE: 0.0 at EOB
             time_var = 2.0f*(pl_block->millimeters-mm_remaining)/(prep.current_speed+prep.maximum_speed);
-            if (mm_remaining == prep.decelerate_after) { prep.ramp_type = RAMP_DECEL; }
-            else { prep.ramp_type = RAMP_CRUISE; }
+            prep.ramp_type = mm_remaining == prep.decelerate_after ? RAMP_DECEL : RAMP_CRUISE;
             prep.current_speed = prep.maximum_speed;
           } else { // Acceleration only.
             prep.current_speed += speed_var;
@@ -851,16 +851,14 @@ void st_prep_buffer()
     float inv_rate = dt/(last_n_steps_remaining - step_dist_remaining); // Compute adjusted step rate inverse
 
     // Compute CPU cycles per step for the prepped segment.
-    uint32_t cycles = ceil( (TICKS_PER_MICROSECOND*1000000ULL*60)*inv_rate ); // (cycles/step)
+    uint32_t cycles = ceil( (F_STEPTIMER*60)*inv_rate ); // (cycles/step)
 
     #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
       // Compute step timing and multi-axis smoothing level.
       // NOTE: AMASS overdrives the timer with each level, so only one prescalar is required.
       if (cycles < AMASS_LEVEL1) { prep_segment->amass_level = 0; }
       else {
-        if (cycles < AMASS_LEVEL2) { prep_segment->amass_level = 1; }
-        else if (cycles < AMASS_LEVEL3) { prep_segment->amass_level = 2; }
-        else { prep_segment->amass_level = 3; }
+        prep_segment->amass_level = cycles < AMASS_LEVEL2 ? 1 : (cycles < AMASS_LEVEL3 ? 2 : 3);
         cycles >>= prep_segment->amass_level;
         prep_segment->n_step <<= prep_segment->amass_level;
       }
@@ -876,11 +874,7 @@ void st_prep_buffer()
         prep_segment->cycles_per_tick = cycles >> 3;
       } else {
         prep_segment->prescaler = 3; // prescaler: 64
-        if (cycles < (1UL << 22)) { // < 4194304 (262ms@16MHz)
-          prep_segment->cycles_per_tick =  cycles >> 6;
-        } else { // Just set the slowest speed possible. (Around 4 step/sec.)
-          prep_segment->cycles_per_tick = 0xffff;
-        }
+        prep_segment->cycles_per_tick = cycles < (1UL << 22) /*< 4194304 (262ms@16MHz)*/  ? cycles >> 6 : 0xffff /*Just set the slowest speed possible. (Around 4 step/sec.)*/;
       }
     #endif
 
