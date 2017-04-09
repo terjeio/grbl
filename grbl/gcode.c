@@ -279,8 +279,8 @@ uint8_t gc_execute_line(char *line)
               break;
           #endif
           default:
-        	  if(hal.unknown_mcode_handler && hal.unknown_mcode_handler(int_value, &line[char_counter]))
-        		  return 0;
+        	  if(hal.userdefined_mcode_check && (gc_block.user_defined_mcode = hal.userdefined_mcode_check(int_value)))
+        	      gc_block.non_modal_command = NON_MODAL_USER_DEFINED_MCODE;
         	  else
         		  FAIL(STATUS_GCODE_UNSUPPORTED_COMMAND); // [Unsupported M command]
         }
@@ -311,7 +311,7 @@ uint8_t gc_execute_line(char *line)
           case 'N': word_bit = WORD_N; gc_block.values.n = trunc(value); break;
           case 'P': word_bit = WORD_P; gc_block.values.p = value; break;
           // NOTE: For certain commands, P value must be an integer, but none of these commands are supported.
-          // case 'Q': // Not supported
+          case 'Q': word_bit = WORD_Q; gc_block.values.q = value; break; // may be used for user defined mcodes
           case 'R': word_bit = WORD_R; gc_block.values.r = value; break;
           case 'S': word_bit = WORD_S; gc_block.values.s = value; break;
           case 'T': word_bit = WORD_T;
@@ -612,11 +612,8 @@ uint8_t gc_execute_line(char *line)
           // [G28/30 Errors]: Cutter compensation is enabled.
           // Retreive G28/30 go-home position data (in machine coordinates) from EEPROM
           // NOTE: Store parameter data in IJK values. By rule, they are not in use with this command.
-          if (gc_block.non_modal_command == NON_MODAL_GO_HOME_0) {
-            if (!settings_read_coord_data(SETTING_INDEX_G28,gc_block.values.ijk)) { FAIL(STATUS_SETTING_READ_FAIL); }
-          } else { // == NON_MODAL_GO_HOME_1
-            if (!settings_read_coord_data(SETTING_INDEX_G30,gc_block.values.ijk)) { FAIL(STATUS_SETTING_READ_FAIL); }
-          }
+          if (!settings_read_coord_data(gc_block.non_modal_command == NON_MODAL_GO_HOME_0 ? SETTING_INDEX_G28 : SETTING_INDEX_G30, gc_block.values.ijk))
+              { FAIL(STATUS_SETTING_READ_FAIL); }
           if (axis_words) {
             // Move only the axes specified in secondary move.
             for (idx=0; idx<N_AXIS; idx++) {
@@ -641,6 +638,10 @@ uint8_t gc_execute_line(char *line)
             FAIL(STATUS_GCODE_G53_INVALID_MOTION_MODE); // [G53 G0/1 not active]
           }
           break;
+        case NON_MODAL_USER_DEFINED_MCODE:
+            if((int_value = hal.userdefined_mcode_validate(&gc_block, &value_words)))
+                FAIL(int_value);
+            break;
       }
   }
 
@@ -921,7 +922,7 @@ uint8_t gc_execute_line(char *line)
       #ifdef VARIABLE_SPINDLE
         if (bit_isfalse(gc_parser_flags,GC_PARSER_LASER_ISMOTION)) {
           if (bit_istrue(gc_parser_flags,GC_PARSER_LASER_DISABLE)) {
-             spindle_sync(gc_state.modal.spindle, 0.0);
+             spindle_sync(gc_state.modal.spindle, 0.0f);
           } else { spindle_sync(gc_state.modal.spindle, gc_block.values.s); }
         }
       #else
@@ -1128,6 +1129,12 @@ uint8_t gc_execute_line(char *line)
       report_feedback_message(MESSAGE_PROGRAM_END);
     }
     gc_state.modal.program_flow = PROGRAM_FLOW_RUNNING; // Reset program flow.
+  }
+
+  if(gc_block.non_modal_command == NON_MODAL_USER_DEFINED_MCODE && sys.state != STATE_CHECK_MODE) {
+      if(gc_block.user_defined_mcode_sync)
+          protocol_buffer_synchronize(); // Ensure user defined mcode is executed when specified in program.
+      hal.userdefined_mcode_execute(&gc_block);
   }
 
   // TODO: % to denote start of program.

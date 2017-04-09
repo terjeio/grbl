@@ -28,6 +28,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "gcode.h"
 
 #define F_STEPTIMER 20000000 // stepper ISR timer clock frequency TODO: use hal.f_step_timer?
 
@@ -73,7 +74,9 @@ typedef struct HAL {
 	void (*set_bits_atomic)(volatile uint8_t *value, uint8_t bits);
 	void (*clear_bits_atomic)(volatile uint8_t *value, uint8_t bits);
 	void (*settings_changed)(settings_t *settings);
-	bool (*unknown_mcode_handler)(uint8_t code, char *params);
+	uint8_t (*userdefined_mcode_check)(uint8_t mcode);
+	uint8_t (*userdefined_mcode_validate)(parser_block_t *gc_block, uint16_t *value_words);
+    void (*userdefined_mcode_execute)(parser_block_t *gc_block);
 	void (*execute_realtime)(uint8_t state);
 	bool (*get_position)(int32_t (*position)[3]);
 	// callbacks - set up by library before MCU init

@@ -2,6 +2,7 @@
   main.c - An embedded CNC Controller with rs274/ngc (g-code) support
   Part of Grbl
 
+  Copyright (c) 2017 Terje Io
   Copyright (c) 2011-2015 Sungeun K. Jeon
   Copyright (c) 2009-2011 Simen Svale Skogsrud
 
@@ -20,6 +21,7 @@
 */
 
 #include "grbl.h"
+// #include "noeeprom.h" // uncomment to enable EEPROM emulation
 
 // Declare system global variable structure
 system_t sys;
@@ -43,6 +45,16 @@ int grbl_enter (void)
 	hal.version = 2; // Update when signatures and/or contract is changed - hal_init() should fail
 
 	driver_init();
+
+#ifdef __noeeprom_h__
+	if(!hal.hasEEPROM && (hal.hasEEPROM = noeeprom_init())) {
+	    hal.eeprom_get_char = &noeeprom_get_char;
+	    hal.eeprom_put_char = &noeeprom_put_char;
+	    hal.memcpy_to_eeprom_with_checksum = &memcpy_to_noeeprom_with_checksum;
+	    hal.memcpy_from_eeprom_with_checksum = &memcpy_from_noeeprom_with_checksum;
+	    settings_restore(SETTINGS_RESTORE_ALL);
+	}
+#endif
 
 	hal.limit_interrupt_callback = &limit_interrupt_handler;
 	hal.control_interrupt_callback = &control_interrupt_handler;

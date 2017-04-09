@@ -64,6 +64,7 @@
 #define NON_MODAL_ABSOLUTE_OVERRIDE 53 // G53 (Do not alter value)
 #define NON_MODAL_SET_COORDINATE_OFFSET 92 // G92 (Do not alter value)
 #define NON_MODAL_RESET_COORDINATE_OFFSET 102 //G92.1 (Do not alter value)
+#define NON_MODAL_USER_DEFINED_MCODE 200 // Mx (Do not alter value)
 
 // Modal Group G1: Motion modes
 #define MOTION_MODE_SEEK 0 // G0 (Default: Must be zero)
@@ -149,6 +150,7 @@
 #define WORD_X  10
 #define WORD_Y  11
 #define WORD_Z  12
+#define WORD_Q  13
 
 // Define g-code parser position updating flags
 #define GC_UPDATE_POS_TARGET   0 // Must be zero
@@ -202,7 +204,7 @@ typedef struct {
   uint8_t l;       // G10 or canned cycles parameters
   int32_t n;       // Line number
   float p;         // G10 or dwell parameters
-  // float q;      // G82 peck drilling
+  float q;         // User defined M-code parameter (G82 peck drilling, not supported)
   float r;         // Arc radius
   float s;         // Spindle speed
   uint8_t t;       // Tool selection
@@ -231,6 +233,8 @@ extern parser_state_t gc_state;
 
 typedef struct {
   uint8_t non_modal_command;
+  uint8_t user_defined_mcode;
+  bool user_defined_mcode_sync;
   gc_modal_t modal;
   gc_values_t values;
 } parser_block_t;

@@ -33,7 +33,12 @@
 #define SPINDLE_PWM_OFF_VALUE     0
 
 #define spindle_get_state() hal.spindle_get_state()
-//#define spindle_stop() hal.spindle_set_state(0, 0.0f)
+
+// Disables the spindle and sets PWM output to zero when PWM variable spindle speed is enabled.
+// Called by various main program and ISR routines. Keep routine small, fast, and efficient.
+// Called by spindle_init(), spindle_set_speed(), spindle_set_state(), and mc_reset().
+#define spindle_stop() hal.spindle_set_state(0, 0.0f)
+
 #define spindle_set_speed(s) hal.spindle_set_speed(s)
 #define spindle_compute_pwm_value(s) hal.spindle_compute_pwm_value(s)
 
@@ -59,8 +64,5 @@
   void _spindle_set_state(uint8_t state);
 
 #endif
-
-  // Stop and start spindle routines. Called by all spindle routines and stepper ISR.
-  void spindle_stop();
 
 #endif
