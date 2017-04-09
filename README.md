@@ -1,9 +1,11 @@
 ![GitHub Logo](https://github.com/gnea/gnea-Media/blob/master/Grbl%20Logo/Grbl%20Logo%20250px.png?raw=true)
 
-***
-_Click the `Release` tab to download pre-compiled `.hex` files or just [click here](https://github.com/gnea/grbl/releases)_
-***
-Grbl is a no-compromise, high performance, low cost alternative to parallel-port-based motion control for CNC milling. This version of Grbl runs on an Arduino with a 328p processor (Uno, Duemilanove, Nano, Micro, etc).
+
+Grbl is a no-compromise, high performance, low cost alternative to parallel-port-based motion control for CNC milling. This version of Grbl is a HALified library that requires a hardware driver and a main\(\) function calling grbl_enter\(\). Some code changes that has been introduced may or may not break Grbl. Adding a driver for the original 328p may prove futile due to the extra memory requirements this version has, it is mainly aimed at ARM processors with ample amounts of RAM and flash \(compared to AVR 238p\).
+
+The driver interface \(HAL\) has entry points for extending the supported M-codes (adding user defined M-codes) as well as an entry point for the driver to execute G-code when Grbl is in idle or jog state.
+
+HAL = Hardware Abstraction Layer
 
 The controller is written in highly optimized C utilizing every clever feature of the AVR-chips to achieve precise timing and asynchronous operation. It is able to maintain up to 30kHz of stable, jitter free control pulses.
 
