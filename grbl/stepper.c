@@ -376,8 +376,7 @@ void stepper_driver_interrupt_handler (void)
   if (st.counter_x > st.exec_block->step_event_count) {
     st.step_outbits |= (1<<X_STEP_BIT);
     st.counter_x -= st.exec_block->step_event_count;
-    if (st.exec_block->direction_bits & (1<<X_DIRECTION_BIT)) { sys_position[X_AXIS]--; }
-    else { sys_position[X_AXIS]++; }
+    sys_position[X_AXIS] = sys_position[X_AXIS] + (st.exec_block->direction_bits & (1<<X_DIRECTION_BIT) ? -1 : 1);
   }
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_y += st.steps[Y_AXIS];
@@ -387,8 +386,7 @@ void stepper_driver_interrupt_handler (void)
   if (st.counter_y > st.exec_block->step_event_count) {
     st.step_outbits |= (1<<Y_STEP_BIT);
     st.counter_y -= st.exec_block->step_event_count;
-    if (st.exec_block->direction_bits & (1<<Y_DIRECTION_BIT)) { sys_position[Y_AXIS]--; }
-    else { sys_position[Y_AXIS]++; }
+    sys_position[Y_AXIS] = sys_position[Y_AXIS] + (st.exec_block->direction_bits & (1<<Y_DIRECTION_BIT) ? -1 : 1);
   }
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_z += st.steps[Z_AXIS];
@@ -398,8 +396,7 @@ void stepper_driver_interrupt_handler (void)
   if (st.counter_z > st.exec_block->step_event_count) {
     st.step_outbits |= (1<<Z_STEP_BIT);
     st.counter_z -= st.exec_block->step_event_count;
-    if (st.exec_block->direction_bits & (1<<Z_DIRECTION_BIT)) { sys_position[Z_AXIS]--; }
-    else { sys_position[Z_AXIS]++; }
+    sys_position[Z_AXIS] = sys_position[Z_AXIS] + (st.exec_block->direction_bits & (1<<Z_DIRECTION_BIT) ? -1 : 1);
   }
 
   // During a homing cycle, lock out and prevent desired axes from moving.
@@ -454,9 +451,6 @@ void st_update_plan_block_parameters()
 // Increments the step segment buffer block data ring buffer.
 inline static uint8_t st_next_block_index(uint8_t block_index)
 {
-//  block_index++;
-//  if ( block_index == (SEGMENT_BUFFER_SIZE-1) ) { return(0); }
-//  return(block_index);
   return ++block_index == (SEGMENT_BUFFER_SIZE - 1) ? 0 : block_index;
 }
 
@@ -862,8 +856,8 @@ void st_prep_buffer()
         cycles >>= prep_segment->amass_level;
         prep_segment->n_step <<= prep_segment->amass_level;
       }
-      if (cycles < (1UL << 16)) { prep_segment->cycles_per_tick = cycles; } // < 65536 (4.1ms @ 16MHz)
-      else { prep_segment->cycles_per_tick = 0xffff; } // Just set the slowest speed possible.
+      // TODO: change cycles_per_tick to uint32_t and delegate check/prescaling to driver?
+      prep_segment->cycles_per_tick = cycles < (1UL << 16) /*< 65536 (4.1ms @ 16MHz)*/ ? cycles : 0xffff /*Just set the slowest speed possible.*/;
     #else
       // Compute step timing and timer prescalar for normal step generation.
       if (cycles < (1UL << 16)) { // < 65536  (4.1ms @ 16MHz)
