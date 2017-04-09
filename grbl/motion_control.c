@@ -31,15 +31,16 @@
 // in the planner and to let backlash compensation or canned cycle integration simple and direct.
 void mc_line(float *target, plan_line_data_t *pl_data)
 {
+
   // If enabled, check for soft limit violations. Placed here all line motions are picked up
   // from everywhere in Grbl.
-  if (bit_istrue(settings.flags,BITFLAG_SOFT_LIMIT_ENABLE)) {
+  if (sys.state != STATE_JOG && bit_istrue(settings.flags,BITFLAG_SOFT_LIMIT_ENABLE)) {
     // NOTE: Block jog state. Jogging is a special case and soft limits are handled independently.
-    if (sys.state != STATE_JOG) { limits_soft_check(target); }
+    limits_soft_check(target);
   }
 
   // If in check gcode mode, prevent motion by blocking planner. Soft limits still work.
-  if (sys.state == STATE_CHECK_MODE) { return; }
+  if (sys.state != STATE_CHECK_MODE && protocol_execute_realtime()) {
 
   // NOTE: Backlash compensation may be installed here. It will need direction info to track when
   // to insert a backlash line motion(s) before the intended line motion and will require its own
@@ -55,18 +56,19 @@ void mc_line(float *target, plan_line_data_t *pl_data)
   // doesn't update the machine position values. Since the position values used by the g-code
   // parser and planner are separate from the system machine positions, this is doable.
 
-  // If the buffer is full: good! That means we are well ahead of the robot.
-  // Remain in this loop until there is room in the buffer.
-  do {
-    if(!protocol_execute_realtime()) // Check for any run-time commands
-        return;                      // Bail, if system abort.
-    if ( plan_check_full_buffer() ) { protocol_auto_cycle_start(); } // Auto-cycle start when buffer is full.
-    else { break; }
-  } while (1);
+      // If the buffer is full: good! That means we are well ahead of the robot.
+      // Remain in this loop until there is room in the buffer.
+      while(plan_check_full_buffer()) {
+        protocol_auto_cycle_start();     // Auto-cycle start when buffer is full.
+        if(!protocol_execute_realtime()) // Check for any run-time commands
+            return;                      // Bail, if system abort.
+      }
 
-  // Plan and queue motion into planner buffer
-  // uint8_t plan_status; // Not used in normal operation.
-  plan_buffer_line(target, pl_data);
+      // Plan and queue motion into planner buffer
+      // uint8_t plan_status; // Not used in normal operation.
+      plan_buffer_line(target, pl_data);
+  }
+
 }
 
 
@@ -187,9 +189,10 @@ void mc_arc(float *target, plan_line_data_t *pl_data, float *position, float *of
 // Execute dwell in seconds.
 void mc_dwell(float seconds)
 {
-  if (sys.state == STATE_CHECK_MODE) { return; }
-  protocol_buffer_synchronize();
-  delay_sec(seconds, DELAY_MODE_DWELL);
+    if (sys.state != STATE_CHECK_MODE) {
+        protocol_buffer_synchronize();
+        delay_sec(seconds, DELAY_MODE_DWELL);
+    }
 }
 
 

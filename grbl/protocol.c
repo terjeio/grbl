@@ -2,6 +2,7 @@
   protocol.c - controls Grbl execution protocol and procedures
   Part of Grbl
 
+  Copyright (c) 2017 Terje Io
   Copyright (c) 2011-2016 Sungeun K. Jeon for Gnea Research LLC
   Copyright (c) 2009-2011 Simen Svale Skogsrud
 
@@ -197,10 +198,7 @@ void protocol_buffer_synchronize()
 {
   // If system is queued, ensure cycle resumes if the auto start flag is present.
   protocol_auto_cycle_start();
-  do {
-    if(!protocol_execute_realtime())   // Check and execute run-time commands
-         return;                       // Bail if system abort
-  } while (plan_get_current_block() || (sys.state == STATE_CYCLE));
+  while (protocol_execute_realtime() && (plan_get_current_block() || sys.state == STATE_CYCLE));
 }
 
 
@@ -210,7 +208,7 @@ void protocol_buffer_synchronize()
 // when one of these conditions exist respectively: There are no more blocks sent (i.e. streaming
 // is finished, single commands), a command that needs to wait for the motions in the buffer to
 // execute calls a buffer sync, or the planner buffer is full and ready to go.
-void protocol_auto_cycle_start()
+inline void protocol_auto_cycle_start()
 {
   if (plan_get_current_block() != NULL) { // Check if there are any blocks in the buffer.
     system_set_exec_state_flag(EXEC_CYCLE_START); // If so, execute them!

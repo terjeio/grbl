@@ -1,7 +1,7 @@
 ![GitHub Logo](https://github.com/gnea/gnea-Media/blob/master/Grbl%20Logo/Grbl%20Logo%20250px.png?raw=true)
 
 
-Grbl is a no-compromise, high performance, low cost alternative to parallel-port-based motion control for CNC milling. This version of Grbl is a HALified library that requires a hardware driver and a main\(\) function calling grbl_enter\(\). Some code changes that has been introduced may or may not break Grbl. Adding a driver for the original 328p may prove futile due to the extra memory requirements this version has, it is mainly aimed at ARM processors with ample amounts of RAM and flash \(compared to AVR 238p\).
+Grbl is a no-compromise, high performance, low cost alternative to parallel-port-based motion control for CNC milling. This version of Grbl is a HALified library that requires a hardware driver and a main\(\) function calling grbl_enter\(\). Some code changes that has been introduced may or may not break Grbl. Adding a driver for the original 328p may prove futile due to the extra memory requirements this version has, it is mainly aimed at ARM processors with ample amounts of RAM and flash \(compared to AVR 328p\).
 
 The driver interface \(HAL\) has entry points for extending the supported M-codes (adding user defined M-codes) as well as an entry point for the driver to execute G-code when Grbl is in idle or jog state.
 

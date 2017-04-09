@@ -128,7 +128,7 @@ uint8_t gc_execute_line(char *line)
     // we would simply need to change the mantissa to int16, but this add compiled flash space.
     // Maybe update this later.
     int_value = trunc(value);
-    mantissa =  round(100*(value - int_value)); // Compute mantissa for Gxx.x commands.
+    mantissa =  round(100.0f*(value - int_value)); // Compute mantissa for Gxx.x commands.
     // NOTE: Rounding must be used to catch small floating point errors.
 
     // Check if the g-code word is supported or errors due to modal group violations or has
@@ -329,7 +329,7 @@ uint8_t gc_execute_line(char *line)
         // Check for invalid negative values for words F, N, P, T, and S.
         // NOTE: Negative value check is done here simply for code-efficiency.
         if ( bit(word_bit) & (bit(WORD_F)|bit(WORD_N)|bit(WORD_P)|bit(WORD_T)|bit(WORD_S)) ) {
-          if (value < 0.0) { FAIL(STATUS_NEGATIVE_VALUE); } // [Word value cannot be negative]
+          if (value < 0.0f) { FAIL(STATUS_NEGATIVE_VALUE); } // [Word value cannot be negative]
         }
         value_words |= bit(word_bit); // Flag to indicate parameter assigned.
 
@@ -441,7 +441,7 @@ uint8_t gc_execute_line(char *line)
   #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
     if (bit_istrue(command_words,bit(MODAL_GROUP_M9))) { // Already set as enabled in parser.
       if (bit_istrue(value_words,bit(WORD_P))) {
-        if (gc_block.values.p == 0.0) { gc_block.modal.override = OVERRIDE_DISABLED; }
+        if (gc_block.values.p == 0.0f) { gc_block.modal.override = OVERRIDE_DISABLED; }
         bit_false(value_words,bit(WORD_P));
       }
     }
@@ -774,7 +774,7 @@ uint8_t gc_execute_line(char *line)
             // even though it is advised against ever generating such circles in a single line of g-code. By
             // inverting the sign of h_x2_div_d the center of the circles is placed on the opposite side of the line of
             // travel and thus we get the unadvisably long arcs as prescribed.
-            if (gc_block.values.r < 0) {
+            if (gc_block.values.r < 0.0f) {
                 h_x2_div_d = -h_x2_div_d;
                 gc_block.values.r = -gc_block.values.r; // Finished with r. Set to positive for mc_arc
             }
@@ -926,7 +926,7 @@ uint8_t gc_execute_line(char *line)
           } else { spindle_sync(gc_state.modal.spindle, gc_block.values.s); }
         }
       #else
-        spindle_sync(gc_state.modal.spindle, 0.0);
+        spindle_sync(gc_state.modal.spindle, 0.0f);
       #endif
     }
     gc_state.spindle_speed = gc_block.values.s; // Update spindle speed state.
@@ -988,7 +988,7 @@ uint8_t gc_execute_line(char *line)
   if (axis_command == AXIS_COMMAND_TOOL_LENGTH_OFFSET ) { // Indicates a change.
     gc_state.modal.tool_length = gc_block.modal.tool_length;
     if (gc_state.modal.tool_length == TOOL_LENGTH_OFFSET_CANCEL) { // G49
-      gc_block.values.xyz[TOOL_LENGTH_OFFSET_AXIS] = 0.0;
+      gc_block.values.xyz[TOOL_LENGTH_OFFSET_AXIS] = 0.0f;
     } // else G43.1
     if ( gc_state.tool_length_offset != gc_block.values.xyz[TOOL_LENGTH_OFFSET_AXIS] ) {
       gc_state.tool_length_offset = gc_block.values.xyz[TOOL_LENGTH_OFFSET_AXIS];
