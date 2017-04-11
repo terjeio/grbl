@@ -208,7 +208,7 @@ void protocol_buffer_synchronize()
 // when one of these conditions exist respectively: There are no more blocks sent (i.e. streaming
 // is finished, single commands), a command that needs to wait for the motions in the buffer to
 // execute calls a buffer sync, or the planner buffer is full and ready to go.
-inline void protocol_auto_cycle_start()
+void protocol_auto_cycle_start()
 {
   if (plan_get_current_block() != NULL) { // Check if there are any blocks in the buffer.
     system_set_exec_state_flag(EXEC_CYCLE_START); // If so, execute them!

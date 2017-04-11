@@ -58,7 +58,7 @@ typedef struct HAL {
 	void (*stepper_enable)(bool on);
 	void (*stepper_set_outputs)(uint8_t step_outbits);
 	void (*stepper_set_directions)(uint8_t dir_outbits);
-	void (*stepper_cycles_per_tick)(uint16_t prescaler, uint16_t cycles_per_tick);
+	void (*stepper_cycles_per_tick)(uint32_t cycles_per_tick);
 	void (*stepper_pulse_start)(uint8_t dir_outbits, uint8_t step_outbits, uint32_t spindle_pwm);
 	uint16_t (*serial_get_rx_buffer_size)(void);
 	uint16_t (*serial_get_rx_buffer_available)(void);

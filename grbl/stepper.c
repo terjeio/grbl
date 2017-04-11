@@ -48,7 +48,7 @@
 #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
 	#define MAX_AMASS_LEVEL 3
 	// AMASS_LEVEL0: Normal operation. No AMASS. No upper cutoff frequency. Starts at LEVEL1 cutoff frequency.
-	#define AMASS_LEVEL1 (F_STEPTIMER/8000) // Over-drives ISR (x2). Defined as F_CPU/(Cutoff frequency in Hz)
+	#define AMASS_LEVEL1 (F_STEPTIMER/8000) // Over-drives ISR (x2). Defined as F_STEPTIMER/(Cutoff frequency in Hz)
 	#define AMASS_LEVEL2 (F_STEPTIMER/4000) // Over-drives ISR (x4)
 	#define AMASS_LEVEL3 (F_STEPTIMER/2000) // Over-drives ISR (x8)
 
@@ -79,16 +79,14 @@ static st_block_t st_block_buffer[SEGMENT_BUFFER_SIZE-1];
 // planner buffer. Once "checked-out", the steps in the segments buffer cannot be modified by
 // the planner, where the remaining planner block steps still can.
 typedef struct {
+  uint32_t cycles_per_tick;  // Step distance traveled per ISR tick, aka step rate.
+#ifdef VARIABLE_SPINDLE
+  uint32_t spindle_pwm;
+#endif
   uint16_t n_step;           // Number of step events to be executed for this segment
-  uint16_t cycles_per_tick;  // Step distance traveled per ISR tick, aka step rate.
   uint8_t  st_block_index;   // Stepper block data index. Uses this information to execute this segment.
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     uint8_t amass_level;    // Indicates AMASS level for the ISR to execute this segment
-  #else
-    uint8_t prescaler;      // Without AMASS, a prescaler is required to adjust for slow timing.
-  #endif
-  #ifdef VARIABLE_SPINDLE
-    uint32_t spindle_pwm;
   #endif
 } segment_t;
 static segment_t segment_buffer[SEGMENT_BUFFER_SIZE];
@@ -312,14 +310,7 @@ void stepper_driver_interrupt_handler (void)
       st.exec_segment = &segment_buffer[segment_buffer_tail];
 
       // Initialize step segment timing per step and load number of steps to execute.
-
-      #ifndef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
-        // With AMASS is disabled, set timer prescaler for segments with slow step frequencies (< 250Hz).
-      	hal.stepper_cycles_per_tick(st.exec_segment->prescaler, st.exec_segment->cycles_per_tick);
-      #else
-        hal.stepper_cycles_per_tick(0, st.exec_segment->cycles_per_tick);
-	  #endif
-
+        hal.stepper_cycles_per_tick(st.exec_segment->cycles_per_tick);
         st.step_count = st.exec_segment->n_step; // NOTE: Can sometimes be zero when moving slow.
       // If the new segment starts a new planner block, initialize stepper variables and counters.
       // NOTE: When the segment data index changes, this indicates a new planner block.
@@ -406,7 +397,7 @@ void stepper_driver_interrupt_handler (void)
   if (st.step_count == 0) {
     // Segment is complete. Discard current segment and advance segment indexing.
     st.exec_segment = NULL;
-    if ( ++segment_buffer_tail == SEGMENT_BUFFER_SIZE) { segment_buffer_tail = 0; }
+    segment_buffer_tail = segment_buffer_tail == (SEGMENT_BUFFER_SIZE - 1) ? 0 : segment_buffer_tail + 1;
   }
 #ifdef DEBUGOUT
 //	debugout(0);
@@ -451,7 +442,7 @@ void st_update_plan_block_parameters()
 // Increments the step segment buffer block data ring buffer.
 inline static uint8_t st_next_block_index(uint8_t block_index)
 {
-  return ++block_index == (SEGMENT_BUFFER_SIZE - 1) ? 0 : block_index;
+  return block_index == (SEGMENT_BUFFER_SIZE - 2) ? 0 : block_index + 1;
 }
 
 
@@ -856,25 +847,12 @@ void st_prep_buffer()
         cycles >>= prep_segment->amass_level;
         prep_segment->n_step <<= prep_segment->amass_level;
       }
-      // TODO: change cycles_per_tick to uint32_t and delegate check/prescaling to driver?
-      prep_segment->cycles_per_tick = cycles < (1UL << 16) /*< 65536 (4.1ms @ 16MHz)*/ ? cycles : 0xffff /*Just set the slowest speed possible.*/;
-    #else
-      // Compute step timing and timer prescalar for normal step generation.
-      if (cycles < (1UL << 16)) { // < 65536  (4.1ms @ 16MHz)
-        prep_segment->prescaler = 1; // prescaler: 0
-        prep_segment->cycles_per_tick = cycles;
-      } else if (cycles < (1UL << 19)) { // < 524288 (32.8ms@16MHz)
-        prep_segment->prescaler = 2; // prescaler: 8
-        prep_segment->cycles_per_tick = cycles >> 3;
-      } else {
-        prep_segment->prescaler = 3; // prescaler: 64
-        prep_segment->cycles_per_tick = cycles < (1UL << 22) /*< 4194304 (262ms@16MHz)*/  ? cycles >> 6 : 0xffff /*Just set the slowest speed possible. (Around 4 step/sec.)*/;
-      }
     #endif
+      prep_segment->cycles_per_tick = cycles;
 
     // Segment complete! Increment segment buffer indices, so stepper ISR can immediately execute it.
     segment_buffer_head = segment_next_head;
-    if ( ++segment_next_head == SEGMENT_BUFFER_SIZE ) { segment_next_head = 0; }
+    segment_next_head = segment_next_head == (SEGMENT_BUFFER_SIZE - 1) ? 0 : segment_next_head + 1;
 
     // Update the appropriate planner and segment data.
     pl_block->millimeters = mm_remaining;
