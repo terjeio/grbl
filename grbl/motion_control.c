@@ -80,7 +80,7 @@ void mc_line(float *target, plan_line_data_t *pl_data)
 // of each segment is configured in settings.arc_tolerance, which is defined to be the maximum normal
 // distance from segment to the circle when the end points both lie on the circle.
 void mc_arc(float *target, plan_line_data_t *pl_data, float *position, float *offset, float radius,
-  uint8_t axis_0, uint8_t axis_1, uint8_t axis_linear, uint8_t is_clockwise_arc)
+  uint8_t axis_0, uint8_t axis_1, uint8_t axis_linear, bool is_clockwise_arc)
 {
   float center_axis0 = position[axis_0] + offset[axis_0];
   float center_axis1 = position[axis_1] + offset[axis_1];
@@ -101,8 +101,7 @@ void mc_arc(float *target, plan_line_data_t *pl_data, float *position, float *of
   // (2x) settings.arc_tolerance. For 99% of users, this is just fine. If a different arc segment fit
   // is desired, i.e. least-squares, midpoint on arc, just change the mm_per_arc_segment calculation.
   // For the intended uses of Grbl, this value shouldn't exceed 2000 for the strictest of cases.
-  uint16_t segments = floor(fabs(0.5f*angular_travel*radius)/
-                          sqrt(settings.arc_tolerance*(2.0f*radius - settings.arc_tolerance)) );
+  uint16_t segments = (uint16_t)floorf(fabs(0.5f * angular_travel * radius) / sqrtf(settings.arc_tolerance*(2.0f * radius - settings.arc_tolerance)));
 
   if (segments) {
     // Multiply inverse feed_rate to compensate for the fact that this movement is approximated
@@ -163,8 +162,8 @@ void mc_arc(float *target, plan_line_data_t *pl_data, float *position, float *of
       } else {
         // Arc correction to radius vector. Computed only every N_ARC_CORRECTION increments. ~375 usec
         // Compute exact location by applying transformation matrix from initial radius vector(=-offset).
-        cos_Ti = cos(i*theta_per_segment);
-        sin_Ti = sin(i*theta_per_segment);
+        cos_Ti = cosf(i*theta_per_segment);
+        sin_Ti = sinf(i*theta_per_segment);
         r_axis0 = -offset[axis_0]*cos_Ti + offset[axis_1]*sin_Ti;
         r_axis1 = -offset[axis_0]*sin_Ti - offset[axis_1]*cos_Ti;
         count = 0;

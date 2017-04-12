@@ -319,8 +319,8 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
 
   // Compute and store initial move distance data.
   int32_t target_steps[N_AXIS], position_steps[N_AXIS];
+  uint32_t idx;
   float unit_vec[N_AXIS], delta_mm;
-  uint8_t idx;
 
   // Copy position data based on type of motion being planned.
   if (block->condition & PL_COND_FLAG_SYSTEM_MOTION) {
@@ -340,7 +340,9 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
     block->steps[B_MOTOR] = labs((target_steps[X_AXIS]-position_steps[X_AXIS]) - (target_steps[Y_AXIS]-position_steps[Y_AXIS]));
   #endif
 
-  for (idx=0; idx<N_AXIS; idx++) {
+    idx = N_AXIS;
+  do {
+      idx--;
     // Calculate target position in absolute steps, number of steps for each axis, and determine max step events.
     // Also, compute individual axes distance for move and prep unit vector calculations.
     // NOTE: Computes true distance from converted step values.
@@ -362,12 +364,14 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
       block->steps[idx] = labs(target_steps[idx]-position_steps[idx]);
       block->step_event_count = max(block->step_event_count, block->steps[idx]);
       delta_mm = (target_steps[idx] - position_steps[idx])/settings.steps_per_mm[idx];
-	  #endif
+      #endif
     unit_vec[idx] = delta_mm; // Store unit vector numerator
 
     // Set direction bits. Bit enabled always means direction is negative.
-    if (delta_mm < 0.0f ) { block->direction_bits |= get_direction_pin_mask(idx); }
-  }
+    if (delta_mm < 0.0f)
+        block->direction_bits |= get_direction_pin_mask(idx);
+
+  } while(idx);
 
   // Bail if this is a zero-length block. Highly unlikely to occur.
   if (block->step_event_count == 0) { return(PLAN_EMPTY_BLOCK); }
@@ -420,10 +424,13 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
 
     float junction_unit_vec[N_AXIS];
     float junction_cos_theta = 0.0f;
-    for (idx=0; idx<N_AXIS; idx++) {
+
+    idx = N_AXIS;
+    do {
+      idx--;
       junction_cos_theta -= pl.previous_unit_vec[idx]*unit_vec[idx];
       junction_unit_vec[idx] = unit_vec[idx]-pl.previous_unit_vec[idx];
-    }
+    } while(idx);
 
     // NOTE: Computed without any expensive trig, sin() or acos(), by trig half angle identity of cos(theta).
     if (junction_cos_theta > 0.999999f) {
@@ -436,7 +443,7 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
       } else {
         convert_delta_vector_to_unit_vector(junction_unit_vec);
         float junction_acceleration = limit_value_by_axis_maximum(settings.acceleration, junction_unit_vec);
-        float sin_theta_d2 = sqrt(0.5f*(1.0f-junction_cos_theta)); // Trig half angle identity. Always positive.
+        float sin_theta_d2 = sqrtf(0.5f*(1.0f-junction_cos_theta)); // Trig half angle identity. Always positive.
         block->max_junction_speed_sqr = max( MINIMUM_JUNCTION_SPEED*MINIMUM_JUNCTION_SPEED,
                        (junction_acceleration * settings.junction_deviation * sin_theta_d2)/(1.0f-sin_theta_d2) );
       }
@@ -469,20 +476,25 @@ void plan_sync_position()
 {
   // TODO: For motor configurations not in the same coordinate frame as the machine position,
   // this function needs to be updated to accomodate the difference.
-  uint8_t idx;
-  for (idx=0; idx<N_AXIS; idx++) {
+    uint32_t idx = N_AXIS;
+    do {
     #ifdef COREXY
-      if (idx==X_AXIS) {
-        pl.position[X_AXIS] = system_convert_corexy_to_x_axis_steps(sys_position);
-      } else if (idx==Y_AXIS) {
-        pl.position[Y_AXIS] = system_convert_corexy_to_y_axis_steps(sys_position);
-      } else {
-        pl.position[idx] = sys_position[idx];
-      }
+        switch(--idx) {
+            case X_AXIS:
+                pl.position[X_AXIS] = system_convert_corexy_to_x_axis_steps(sys_position);
+                break;
+            case Y_AXIS:
+                pl.position[Y_AXIS] = system_convert_corexy_to_y_axis_steps(sys_position);
+                break;
+            default:
+                pl.position[idx] = sys_position[idx];
+                break;
+        }
     #else
-      pl.position[idx] = sys_position[idx];
+        idx--;
+        pl.position[idx] = sys_position[idx];
     #endif
-  }
+    } while(idx);
 }
 
 

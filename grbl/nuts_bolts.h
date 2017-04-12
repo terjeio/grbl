@@ -82,7 +82,7 @@ bool read_float(char *line, uint8_t *char_counter, float *float_ptr);
 void delay_sec(float seconds, uint8_t mode);
 
 // Computes hypotenuse, avoiding avr-gcc's bloated version and the extra error checking.
-float hypot_f(float x, float y);
+//float hypot_f(float x, float y);
 //#define hypot_f(x, y) sqrt(((x)*(x)) + ((y)*(y)))
 
 float convert_delta_vector_to_unit_vector(float *vector);

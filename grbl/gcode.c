@@ -38,6 +38,10 @@ parser_block_t gc_block;
 
 #define FAIL(status) return(status);
 
+// Simple hypotenuse computation function.
+inline float hypot_f(float x, float y) {
+    return sqrtf(x*x + y*y);
+}
 
 void gc_init()
 {
@@ -279,10 +283,10 @@ uint8_t gc_execute_line(char *line)
               break;
           #endif
           default:
-        	  if(hal.userdefined_mcode_check && (gc_block.user_defined_mcode = hal.userdefined_mcode_check(int_value)))
-        	      gc_block.non_modal_command = NON_MODAL_USER_DEFINED_MCODE;
-        	  else
-        		  FAIL(STATUS_GCODE_UNSUPPORTED_COMMAND); // [Unsupported M command]
+              if(hal.userdefined_mcode_check && (gc_block.user_defined_mcode = hal.userdefined_mcode_check(int_value)))
+                  gc_block.non_modal_command = NON_MODAL_USER_DEFINED_MCODE;
+              else
+                  FAIL(STATUS_GCODE_UNSUPPORTED_COMMAND); // [Unsupported M command]
         }
 
         // Check for more than one command per modal group violations in the current block
@@ -315,9 +319,9 @@ uint8_t gc_execute_line(char *line)
           case 'R': word_bit = WORD_R; gc_block.values.r = value; break;
           case 'S': word_bit = WORD_S; gc_block.values.s = value; break;
           case 'T': word_bit = WORD_T;
-					  if (value > MAX_TOOL_NUMBER) { FAIL(STATUS_GCODE_MAX_VALUE_EXCEEDED); }
+                      if (value > MAX_TOOL_NUMBER) { FAIL(STATUS_GCODE_MAX_VALUE_EXCEEDED); }
             gc_block.values.t = int_value;
-						break;
+                        break;
           case 'X': word_bit = WORD_X; gc_block.values.xyz[X_AXIS] = value; axis_words |= (1<<X_AXIS); break;
           case 'Y': word_bit = WORD_Y; gc_block.values.xyz[Y_AXIS] = value; axis_words |= (1<<Y_AXIS); break;
           case 'Z': word_bit = WORD_Z; gc_block.values.xyz[Z_AXIS] = value; axis_words |= (1<<Z_AXIS); break;
@@ -473,14 +477,11 @@ uint8_t gc_execute_line(char *line)
 
   // [12. Set length units ]: N/A
   // Pre-convert XYZ coordinate values to millimeters, if applicable.
-  uint8_t idx;
-  if (gc_block.modal.units == UNITS_MODE_INCHES) {
-    for (idx=0; idx<N_AXIS; idx++) { // Axes indices are consistent, so loop may be used.
-      if (bit_istrue(axis_words,bit(idx)) ) {
+  uint32_t idx = N_AXIS;
+  if (gc_block.modal.units == UNITS_MODE_INCHES) do { // Axes indices are consistent, so loop may be used.
+      if (bit_istrue(axis_words, bit(--idx)))
         gc_block.values.xyz[idx] *= MM_PER_INCH;
-      }
-    }
-  }
+  } while(idx);
 
   // [13. Cutter radius compensation ]: G41/42 NOT SUPPORTED. Error, if enabled while G53 is active.
   // [G40 Errors]: G2/3 arc is programmed after a G40. The linear move after disabling is less than tool diameter.
@@ -545,9 +546,10 @@ uint8_t gc_execute_line(char *line)
       if (!settings_read_coord_data(coord_select,gc_block.values.ijk)) { FAIL(STATUS_SETTING_READ_FAIL); } // [EEPROM read fail]
 
       // Pre-calculate the coordinate data changes.
-      for (idx=0; idx<N_AXIS; idx++) { // Axes indices are consistent, so loop may be used.
+      idx = N_AXIS;
+      do { // Axes indices are consistent, so loop may be used.
         // Update axes defined only in block. Always in machine coordinates. Can change non-active system.
-        if (bit_istrue(axis_words,bit(idx)) ) {
+        if (bit_istrue(axis_words, bit(--idx))) {
           if (gc_block.values.l == 20) {
             // L20: Update coordinate system axis at current position (with modifiers) with programmed value
             // WPos = MPos - WCS - G92 - TLO  ->  WCS = MPos - G92 - TLO - WPos
@@ -558,7 +560,7 @@ uint8_t gc_execute_line(char *line)
             gc_block.values.ijk[idx] = gc_block.values.xyz[idx];
           }
         } // Else, keep current stored value.
-      }
+      } while(idx);
       break;
     case NON_MODAL_SET_COORDINATE_OFFSET:
       // [G92 Errors]: No axis words.
@@ -566,15 +568,16 @@ uint8_t gc_execute_line(char *line)
 
       // Update axes defined only in block. Offsets current system to defined value. Does not update when
       // active coordinate system is selected, but is still active unless G92.1 disables it.
-      for (idx=0; idx<N_AXIS; idx++) { // Axes indices are consistent, so loop may be used.
-        if (bit_istrue(axis_words,bit(idx)) ) {
+      idx = N_AXIS;
+      do { // Axes indices are consistent, so loop may be used.
+        if (bit_istrue(axis_words, bit(--idx)) ) {
           // WPos = MPos - WCS - G92 - TLO  ->  G92 = MPos - WCS - TLO - WPos
           gc_block.values.xyz[idx] = gc_state.position[idx]-block_coord_system[idx]-gc_block.values.xyz[idx];
           if (idx == TOOL_LENGTH_OFFSET_AXIS) { gc_block.values.xyz[idx] -= gc_state.tool_length_offset; }
         } else {
           gc_block.values.xyz[idx] = gc_state.coord_offset[idx];
         }
-      }
+      } while(idx);
       break;
 
     default:
@@ -585,8 +588,9 @@ uint8_t gc_execute_line(char *line)
       // NOTE: Tool offsets may be appended to these conversions when/if this feature is added.
       if (axis_command != AXIS_COMMAND_TOOL_LENGTH_OFFSET ) { // TLO block any axis command.
         if (axis_words) {
-          for (idx=0; idx<N_AXIS; idx++) { // Axes indices are consistent, so loop may be used to save flash space.
-            if ( bit_isfalse(axis_words,bit(idx)) ) {
+          idx = N_AXIS;
+          do { // Axes indices are consistent, so loop may be used to save flash space.
+            if (bit_isfalse(axis_words, bit(--idx))) {
               gc_block.values.xyz[idx] = gc_state.position[idx]; // No axis word in block. Keep same axis position.
             } else {
               // Update specified value according to distance mode or ignore if absolute override is active.
@@ -601,7 +605,7 @@ uint8_t gc_execute_line(char *line)
                 }
               }
             }
-          }
+          } while(idx);
         }
       }
 
@@ -616,9 +620,11 @@ uint8_t gc_execute_line(char *line)
               { FAIL(STATUS_SETTING_READ_FAIL); }
           if (axis_words) {
             // Move only the axes specified in secondary move.
-            for (idx=0; idx<N_AXIS; idx++) {
-              if (!(axis_words & (1<<idx))) { gc_block.values.ijk[idx] = gc_state.position[idx]; }
-            }
+            idx = N_AXIS;
+            do {
+              if (!(axis_words & (1<<(--idx)))) // TODO: check for inconsistent code... = bit_isfalse(axis_words, bit(--idx))?
+                  gc_block.values.ijk[idx] = gc_state.position[idx];
+            } while(idx);
           } else {
             axis_command = AXIS_COMMAND_NONE; // Set to none if no intermediate motion.
           }
@@ -751,7 +757,7 @@ uint8_t gc_execute_line(char *line)
             if (h_x2_div_d < 0.0f) { FAIL(STATUS_GCODE_ARC_RADIUS_ERROR); } // [Arc radius error]
 
             // Finish computing h_x2_div_d.
-            h_x2_div_d = -sqrt(h_x2_div_d)/hypot_f(x,y); // == -(h * 2 / d)
+            h_x2_div_d = -sqrtf(h_x2_div_d)/hypot_f(x,y); // == -(h * 2 / d)
             // Invert the sign of h_x2_div_d if the circle is counter clockwise (see sketch below)
             if (gc_block.modal.motion == MOTION_MODE_CCW_ARC) { h_x2_div_d = -h_x2_div_d; }
 
@@ -788,9 +794,11 @@ uint8_t gc_execute_line(char *line)
 
             // Convert IJK values to proper units.
             if (gc_block.modal.units == UNITS_MODE_INCHES) {
-              for (idx=0; idx<N_AXIS; idx++) { // Axes indices are consistent, so loop may be used to save flash space.
-                if (ijk_words & bit(idx)) { gc_block.values.ijk[idx] *= MM_PER_INCH; }
-              }
+              idx = N_AXIS;
+              do { // Axes indices are consistent, so loop may be used to save flash space.
+                if (ijk_words & bit(--idx))
+                  gc_block.values.ijk[idx] *= MM_PER_INCH;
+              } while(idx);
             }
 
             // Arc radius from center to target

@@ -535,15 +535,21 @@ void st_prep_buffer()
         // segment buffer finishes the prepped block, but the stepper ISR is still executing it.
         st_prep_block = &st_block_buffer[prep.st_block_index];
         st_prep_block->direction_bits = pl_block->direction_bits;
-        uint8_t idx;
+        uint32_t idx = N_AXIS;
         #ifndef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
-          for (idx=0; idx<N_AXIS; idx++) { st_prep_block->steps[idx] = (pl_block->steps[idx] << 1); }
+          do {
+              idx--;
+              st_prep_block->steps[idx] = (pl_block->steps[idx] << 1);
+          } while(idx);
           st_prep_block->step_event_count = (pl_block->step_event_count << 1);
         #else
           // With AMASS enabled, simply bit-shift multiply all Bresenham data by the max AMASS
           // level, such that we never divide beyond the original data anywhere in the algorithm.
           // If the original data is divided, we can lose a step from integer roundoff.
-          for (idx=0; idx<N_AXIS; idx++) { st_prep_block->steps[idx] = pl_block->steps[idx] << MAX_AMASS_LEVEL; }
+          do {
+              idx--;
+              st_prep_block->steps[idx] = pl_block->steps[idx] << MAX_AMASS_LEVEL;
+          } while(idx);
           st_prep_block->step_event_count = pl_block->step_event_count << MAX_AMASS_LEVEL;
         #endif
 
@@ -559,7 +565,7 @@ void st_prep_buffer()
           pl_block->entry_speed_sqr = prep.exit_speed*prep.exit_speed;
           prep.recalculate_flag &= ~(PREP_FLAG_DECEL_OVERRIDE);
         } else {
-          prep.current_speed = sqrt(pl_block->entry_speed_sqr);
+          prep.current_speed = sqrtf(pl_block->entry_speed_sqr);
         }
 
         #ifdef VARIABLE_SPINDLE
@@ -592,7 +598,7 @@ void st_prep_buffer()
 				float decel_dist = pl_block->millimeters - inv_2_accel*pl_block->entry_speed_sqr;
 				if (decel_dist < 0.0f) {
 					// Deceleration through entire planner block. End of feed hold is not in this block.
-					prep.exit_speed = sqrt(pl_block->entry_speed_sqr-2*pl_block->acceleration*pl_block->millimeters);
+					prep.exit_speed = sqrtf(pl_block->entry_speed_sqr-2*pl_block->acceleration*pl_block->millimeters);
 				} else {
 					prep.mm_complete = decel_dist; // End of feed hold.
 					prep.exit_speed = 0.0f;
@@ -608,7 +614,7 @@ void st_prep_buffer()
           prep.exit_speed = exit_speed_sqr = 0.0f; // Enforce stop at end of system motion.
         } else {
           exit_speed_sqr = plan_get_exec_block_exit_speed_sqr();
-          prep.exit_speed = sqrt(exit_speed_sqr);
+          prep.exit_speed = sqrtf(exit_speed_sqr);
         }
 
         nominal_speed = plan_compute_profile_nominal_speed(pl_block);
@@ -623,7 +629,7 @@ void st_prep_buffer()
             // prep.maximum_speed = prep.current_speed;
 
             // Compute override block exit speed since it doesn't match the planner exit speed.
-            prep.exit_speed = sqrt(pl_block->entry_speed_sqr - 2.0f*pl_block->acceleration*pl_block->millimeters);
+            prep.exit_speed = sqrtf(pl_block->entry_speed_sqr - 2.0f*pl_block->acceleration*pl_block->millimeters);
             prep.recalculate_flag |= PREP_FLAG_DECEL_OVERRIDE; // Flag to load next block as deceleration override.
 
             // TODO: Determine correct handling of parameters in deceleration-only.
@@ -652,7 +658,7 @@ void st_prep_buffer()
 						} else { // Triangle type
 							prep.accelerate_until = intersect_distance;
 							prep.decelerate_after = intersect_distance;
-							prep.maximum_speed = sqrt(2.0f*pl_block->acceleration*intersect_distance+exit_speed_sqr);
+							prep.maximum_speed = sqrtf(2.0f*pl_block->acceleration*intersect_distance+exit_speed_sqr);
 						}
 					} else { // Deceleration-only type
             prep.ramp_type = RAMP_DECEL;
@@ -807,8 +813,8 @@ void st_prep_buffer()
        supported by Grbl (i.e. exceeding 10 meters axis travel at 200 step/mm).
     */
     float step_dist_remaining = prep.step_per_mm*mm_remaining; // Convert mm_remaining to steps
-    float n_steps_remaining = ceil(step_dist_remaining); // Round-up current steps remaining
-    float last_n_steps_remaining = ceil(prep.steps_remaining); // Round-up last steps remaining
+    float n_steps_remaining = ceilf(step_dist_remaining); // Round-up current steps remaining
+    float last_n_steps_remaining = ceilf(prep.steps_remaining); // Round-up last steps remaining
     prep_segment->n_step = last_n_steps_remaining-n_steps_remaining; // Compute number of steps to execute.
 
     // Bail if we are at the end of a feed hold and don't have a step to execute.
@@ -836,7 +842,7 @@ void st_prep_buffer()
     float inv_rate = dt/(last_n_steps_remaining - step_dist_remaining); // Compute adjusted step rate inverse
 
     // Compute CPU cycles per step for the prepped segment.
-    uint32_t cycles = ceil( (F_STEPTIMER*60)*inv_rate ); // (cycles/step)
+    uint32_t cycles = (uint32_t)ceilf((F_STEPTIMER*60)*inv_rate); // (cycles/step)
 
     #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
       // Compute step timing and multi-axis smoothing level.

@@ -247,7 +247,7 @@ void system_flag_wco_change()
 // Returns machine position of axis 'idx'. Must be sent a 'step' array.
 // NOTE: If motor steps and machine position are not in the same coordinate frame, this function
 //   serves as a central place to compute the transformation.
-inline float system_convert_axis_steps_to_mpos(int32_t *steps, uint8_t idx)
+inline float system_convert_axis_steps_to_mpos(int32_t *steps, uint32_t idx)
 {
   #ifdef COREXY
     float pos;
@@ -267,10 +267,11 @@ inline float system_convert_axis_steps_to_mpos(int32_t *steps, uint8_t idx)
 
 void system_convert_array_steps_to_mpos(float *position, int32_t *steps)
 {
-  uint8_t idx;
-  for (idx=0; idx<N_AXIS; idx++) {
-    position[idx] = system_convert_axis_steps_to_mpos(steps, idx);
-  }
+    uint32_t idx = N_AXIS;
+    do {
+        idx--;
+        position[idx] = system_convert_axis_steps_to_mpos(steps, idx);
+    } while(idx);
 }
 
 
@@ -287,24 +288,27 @@ void system_convert_array_steps_to_mpos(float *position, int32_t *steps)
 #endif
 
 
-// Checks and reports if target array exceeds machine travel limits.
-uint8_t system_check_travel_limits(float *target)
+// Checks and reports if target array exceeds machine travel limits. Returns true if check failed.
+bool system_check_travel_limits(float *target)
 {
-  uint8_t idx;
-  for (idx=0; idx<N_AXIS; idx++) {
+    bool failed = false;
+    uint32_t idx = N_AXIS;
+
+    do {
+        idx--;
     #ifdef HOMING_FORCE_SET_ORIGIN
-      // When homing forced set origin is enabled, soft limits checks need to account for directionality.
-      // NOTE: max_travel is stored as negative
-      if (bit_istrue(settings.homing_dir_mask,bit(idx))) {
-        if (target[idx] < 0 || target[idx] > -settings.max_travel[idx]) { return(true); }
-      } else {
-        if (target[idx] > 0 || target[idx] < settings.max_travel[idx]) { return(true); }
-      }
+    // When homing forced set origin is enabled, soft limits checks need to account for directionality.
+    // NOTE: max_travel is stored as negative
+        failed = bit_istrue(settings.homing_dir_mask, bit(idx))
+                  ? (target[idx] < 0.0f || target[idx] > -settings.max_travel[idx])
+                  : (target[idx] > 0.0f || target[idx] < settings.max_travel[idx]);
     #else
-      // NOTE: max_travel is stored as negative
-      if (target[idx] > 0 || target[idx] < settings.max_travel[idx]) { return(true); }
+        // NOTE: max_travel is stored as negative
+        failed = target[idx] > 0.0f || target[idx] < settings.max_travel[idx];
     #endif
-  }
-  return(false);
+    } while(!failed && idx);
+
+  return failed;
+
 }
 
