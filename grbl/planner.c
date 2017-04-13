@@ -334,10 +334,10 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
   } else { memcpy(position_steps, pl.position, sizeof(pl.position)); }
 
   #ifdef COREXY
-    target_steps[A_MOTOR] = lround(target[A_MOTOR]*settings.steps_per_mm[A_MOTOR]);
-    target_steps[B_MOTOR] = lround(target[B_MOTOR]*settings.steps_per_mm[B_MOTOR]);
-    block->steps[A_MOTOR] = labs((target_steps[X_AXIS]-position_steps[X_AXIS]) + (target_steps[Y_AXIS]-position_steps[Y_AXIS]));
-    block->steps[B_MOTOR] = labs((target_steps[X_AXIS]-position_steps[X_AXIS]) - (target_steps[Y_AXIS]-position_steps[Y_AXIS]));
+    target_steps[A_MOTOR] = lroundf(target[A_MOTOR]*settings.steps_per_mm[A_MOTOR]);
+    target_steps[B_MOTOR] = lroundf(target[B_MOTOR]*settings.steps_per_mm[B_MOTOR]);
+    block->steps[A_MOTOR] = labsf((target_steps[X_AXIS]-position_steps[X_AXIS]) + (target_steps[Y_AXIS]-position_steps[Y_AXIS]));
+    block->steps[B_MOTOR] = labsf((target_steps[X_AXIS]-position_steps[X_AXIS]) - (target_steps[Y_AXIS]-position_steps[Y_AXIS]));
   #endif
 
     idx = N_AXIS;

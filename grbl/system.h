@@ -100,19 +100,15 @@
 #define STEP_CONTROL_EXECUTE_SYS_MOTION   bit(2)
 #define STEP_CONTROL_UPDATE_SPINDLE_PWM   bit(3)
 
-// Define control pin index for Grbl internal use. Pin maps may change, but these values don't.
-#ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
-  #define N_CONTROL_PIN 4
-  #define CONTROL_PIN_INDEX_SAFETY_DOOR   bit(0)
-  #define CONTROL_PIN_INDEX_RESET         bit(1)
-  #define CONTROL_PIN_INDEX_FEED_HOLD     bit(2)
-  #define CONTROL_PIN_INDEX_CYCLE_START   bit(3)
-#else
-  #define N_CONTROL_PIN 3
-  #define CONTROL_PIN_INDEX_RESET         bit(0)
-  #define CONTROL_PIN_INDEX_FEED_HOLD     bit(1)
-  #define CONTROL_PIN_INDEX_CYCLE_START   bit(2)
-#endif
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t reset       :1,
+                feed_hold   :1,
+                cycle_start :1,
+                safety_door :1;
+    };
+} controlsignals_t;
 
 // Define spindle stop override control states.
 #define SPINDLE_STOP_OVR_DISABLED       0  // Must be zero.
@@ -166,7 +162,7 @@ extern volatile uint8_t sys_rt_exec_accessory_override; // Global realtime execu
 #define system_control_get_state() hal.system_control_get_state()
 
 // Returns if safety door is open or closed, based on pin state.
-uint8_t system_check_safety_door_ajar();
+bool system_check_safety_door_ajar();
 
 // Executes an internal system command, defined as a string starting with a '$'
 uint8_t system_execute_line(char *line);
@@ -202,7 +198,6 @@ bool system_check_travel_limits(float *target);
 #define system_clear_exec_motion_overrides() hal.clear_bits_atomic(&sys_rt_exec_motion_override, 0xFF)
 #define system_clear_exec_accessory_overrides()  hal.clear_bits_atomic(&sys_rt_exec_accessory_override, 0xFF)
 
-
-void control_interrupt_handler (uint8_t pin);
+void control_interrupt_handler (controlsignals_t signals);
 
 #endif

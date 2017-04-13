@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "gcode.h"
+#include "system.h"
 
 #define F_STEPTIMER 20000000 // stepper ISR timer clock frequency TODO: use hal.f_step_timer?
 
@@ -52,7 +53,7 @@ typedef struct HAL {
 	uint8_t (*spindle_get_state)(void);
 	uint32_t (*spindle_set_speed)(uint32_t pwm_value);
 	uint32_t (*spindle_compute_pwm_value)(float rpm);
-	uint8_t (*system_control_get_state)(void);
+	controlsignals_t (*system_control_get_state)(void);
 	void (*stepper_wake_up)(uint8_t delay);
 	void (*stepper_go_idle)(void);
 	void (*stepper_enable)(bool on);
@@ -72,7 +73,7 @@ typedef struct HAL {
 	void (*memcpy_to_eeprom_with_checksum)(unsigned int destination, char *source, unsigned int size);
 	int (*memcpy_from_eeprom_with_checksum)(char *destination, unsigned int source, unsigned int size);
 	void (*set_bits_atomic)(volatile uint8_t *value, uint8_t bits);
-	void (*clear_bits_atomic)(volatile uint8_t *value, uint8_t bits);
+	uint8_t (*clear_bits_atomic)(volatile uint8_t *value, uint8_t bits);
 	void (*settings_changed)(settings_t *settings);
 	uint8_t (*userdefined_mcode_check)(uint8_t mcode);
 	uint8_t (*userdefined_mcode_validate)(parser_block_t *gc_block, uint16_t *value_words);
@@ -83,7 +84,7 @@ typedef struct HAL {
 	bool (*protocol_process_realtime)(int32_t data);
 	void (*stepper_interrupt_callback)(void);
 	void (*limit_interrupt_callback)(uint8_t state);
-	void (*control_interrupt_callback)(uint8_t pins);
+	void (*control_interrupt_callback)(controlsignals_t signals);
 	bool (*protocol_enqueue_gcode)(char *data);
 	bool hasEEPROM;
 } HAL;

@@ -24,19 +24,19 @@
 // only the realtime command execute variable to have the main program execute these when
 // its ready. This works exactly like the character-based realtime commands when picked off
 // directly from the incoming serial data stream.
-void control_interrupt_handler (uint8_t pin)
+void control_interrupt_handler (controlsignals_t signals)
 {
 
-  if (pin) {
-    if (bit_istrue(pin,CONTROL_PIN_INDEX_RESET)) {
+  if (signals.value) {
+    if (signals.reset) {
       mc_reset();
-    } else if (bit_istrue(pin,CONTROL_PIN_INDEX_CYCLE_START)) {
+    } else if (signals.cycle_start) {
       bit_true(sys_rt_exec_state, EXEC_CYCLE_START);
     #ifndef ENABLE_SAFETY_DOOR_INPUT_PIN
-      } else if (bit_istrue(pin,CONTROL_PIN_INDEX_FEED_HOLD)) {
+      } else if (signals.feed_hold) {
         bit_true(sys_rt_exec_state, EXEC_FEED_HOLD);
     #else
-      } else if (bit_istrue(pin,CONTROL_PIN_INDEX_SAFETY_DOOR)) {
+      } else if (signals.safety_door) {
         bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
     #endif
     }
@@ -45,12 +45,12 @@ void control_interrupt_handler (uint8_t pin)
 
 
 // Returns if safety door is ajar(T) or closed(F), based on pin state.
-uint8_t system_check_safety_door_ajar()
+bool system_check_safety_door_ajar()
 {
-  #ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
-    return(hal.system_control_get_state() & CONTROL_PIN_INDEX_SAFETY_DOOR);
+  #ifndef ENABLE_SAFETY_DOOR_INPUT_PIN
+    return system_control_get_state().safety_door != 0;
   #else
-    return(false); // Input pin not enabled, so just return that it's closed.
+    return false; // Input pin not enabled, so just return that it's closed.
   #endif
 }
 
@@ -140,7 +140,7 @@ uint8_t system_execute_line(char *line)
           else { report_ngc_parameters(); }
           break;
         case 'H' : // Perform homing cycle [IDLE/ALARM]
-          if (bit_isfalse(settings.flags,BITFLAG_HOMING_ENABLE)) {return(STATUS_SETTING_DISABLED); }
+          if (!settings.flags.homing_enable) {return(STATUS_SETTING_DISABLED); }
           if (system_check_safety_door_ajar()) { return(STATUS_CHECK_DOOR); } // Block if safety door is ajar.
           sys.state = STATE_HOMING; // Set system state variable
           if (line[2] == 0) {
@@ -219,7 +219,7 @@ uint8_t system_execute_line(char *line)
             // Execute gcode block to ensure block is valid.
             line = &line[counter];
             if ((retval = gc_execute_line(line)) == STATUS_OK)
-              settings_store_startup_line((uint8_t)trunc(parameter), line);
+              settings_store_startup_line((uint8_t)truncf(parameter), line);
           } else { // Store global setting.
             if(!read_float(line, &counter, &value))
                 retval = STATUS_BAD_NUMBER_FORMAT;

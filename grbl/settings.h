@@ -32,20 +32,6 @@
 // when firmware is upgraded. Always stored in byte 0 of eeprom
 #define SETTINGS_VERSION 10  // NOTE: Check settings_reset() when moving to next version.
 
-// Define bit flag masks for the boolean settings in settings.flag.
-#define BITFLAG_REPORT_INCHES      bit(0)
-#define BITFLAG_LASER_MODE         bit(1)
-#define BITFLAG_INVERT_ST_ENABLE   bit(2)
-#define BITFLAG_HARD_LIMIT_ENABLE  bit(3)
-#define BITFLAG_HOMING_ENABLE      bit(4)
-#define BITFLAG_SOFT_LIMIT_ENABLE  bit(5)
-#define BITFLAG_INVERT_LIMIT_PINS  bit(6)
-#define BITFLAG_INVERT_PROBE_PIN   bit(7)
-
-// Define status reporting boolean enable bit flags in settings.status_report_mask
-#define BITFLAG_RT_STATUS_POSITION_TYPE     bit(0)
-#define BITFLAG_RT_STATUS_BUFFER_STATE      bit(1)
-
 // Define settings restore bitflags.
 #define SETTINGS_RESTORE_DEFAULTS bit(0)
 #define SETTINGS_RESTORE_PARAMETERS bit(1)
@@ -77,6 +63,29 @@
 #define AXIS_SETTINGS_START_VAL  100 // NOTE: Reserving settings values >= 100 for axis settings. Up to 255.
 #define AXIS_SETTINGS_INCREMENT  10  // Must be greater than the number of axis settings
 
+
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t report_inches     :1,
+                 laser_mode        :1,
+                 invert_st_enable  :1,
+                 hard_limit_enable :1,
+                 homing_enable     :1,
+                 soft_limit_enable :1,
+                 invert_limit_pins :1,
+                 invert_probe_pin  :1;
+    };
+} settingflags_t;
+
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t position_type :1,
+                buffer_state  :1;
+    };
+} reportmask_t;
+
 // Global persistent settings (Stored from byte EEPROM_ADDR_GLOBAL onwards)
 typedef struct {
   // Axis settings
@@ -90,14 +99,14 @@ typedef struct {
   uint8_t step_invert_mask;
   uint8_t dir_invert_mask;
   uint8_t stepper_idle_lock_time; // If max value 255, steppers do not disable.
-  uint8_t status_report_mask; // Mask to indicate desired report data.
+  reportmask_t status_report_mask; // Mask to indicate desired report data.
   float junction_deviation;
   float arc_tolerance;
 
   float rpm_max;
   float rpm_min;
 
-  uint8_t flags;  // Contains default boolean settings
+  settingflags_t flags;  // Contains default boolean settings
 
   uint8_t homing_dir_mask;
   float homing_feed_rate;
@@ -105,6 +114,7 @@ typedef struct {
   uint16_t homing_debounce_delay;
   float homing_pulloff;
 } settings_t;
+
 extern settings_t settings;
 
 // Initialize the configuration subsystem (load settings from EEPROM)

@@ -185,16 +185,16 @@ void report_grbl_settings() {
   report_util_uint8_setting(1,settings.stepper_idle_lock_time);
   report_util_uint8_setting(2,settings.step_invert_mask);
   report_util_uint8_setting(3,settings.dir_invert_mask);
-  report_util_uint8_setting(4,bit_istrue(settings.flags,BITFLAG_INVERT_ST_ENABLE));
-  report_util_uint8_setting(5,bit_istrue(settings.flags,BITFLAG_INVERT_LIMIT_PINS));
-  report_util_uint8_setting(6,bit_istrue(settings.flags,BITFLAG_INVERT_PROBE_PIN));
-  report_util_uint8_setting(10,settings.status_report_mask);
+  report_util_uint8_setting(4, settings.flags.invert_st_enable);
+  report_util_uint8_setting(5, settings.flags.invert_limit_pins);
+  report_util_uint8_setting(6, settings.flags.invert_probe_pin);
+  report_util_uint8_setting(10,settings.status_report_mask.value);
   report_util_float_setting(11,settings.junction_deviation,N_DECIMAL_SETTINGVALUE);
   report_util_float_setting(12,settings.arc_tolerance,N_DECIMAL_SETTINGVALUE);
-  report_util_uint8_setting(13,bit_istrue(settings.flags,BITFLAG_REPORT_INCHES));
-  report_util_uint8_setting(20,bit_istrue(settings.flags,BITFLAG_SOFT_LIMIT_ENABLE));
-  report_util_uint8_setting(21,bit_istrue(settings.flags,BITFLAG_HARD_LIMIT_ENABLE));
-  report_util_uint8_setting(22,bit_istrue(settings.flags,BITFLAG_HOMING_ENABLE));
+  report_util_uint8_setting(13, settings.flags.report_inches);
+  report_util_uint8_setting(20, settings.flags.soft_limit_enable);
+  report_util_uint8_setting(21, settings.flags.hard_limit_enable);
+  report_util_uint8_setting(22, settings.flags.homing_enable);
   report_util_uint8_setting(23,settings.homing_dir_mask);
   report_util_float_setting(24,settings.homing_feed_rate,N_DECIMAL_SETTINGVALUE);
   report_util_float_setting(25,settings.homing_seek_rate,N_DECIMAL_SETTINGVALUE);
@@ -203,7 +203,7 @@ void report_grbl_settings() {
   report_util_float_setting(30,settings.rpm_max,N_DECIMAL_RPMVALUE);
   report_util_float_setting(31,settings.rpm_min,N_DECIMAL_RPMVALUE);
   #ifdef VARIABLE_SPINDLE
-    report_util_uint8_setting(32,bit_istrue(settings.flags,BITFLAG_LASER_MODE));
+    report_util_uint8_setting(32, settings.flags.laser_mode);
   #else
     report_util_uint8_setting(32,0);
   #endif
@@ -496,20 +496,19 @@ void report_realtime_status()
   }
 
   float wco[N_AXIS];
-  if (bit_isfalse(settings.status_report_mask,BITFLAG_RT_STATUS_POSITION_TYPE) ||
-      (sys.report_wco_counter == 0) ) {
+  if (!settings.status_report_mask.position_type || sys.report_wco_counter == 0) {
     for (idx=0; idx< N_AXIS; idx++) {
       // Apply work coordinate offsets and tool length offset to current position.
       wco[idx] = gc_state.coord_system[idx]+gc_state.coord_offset[idx];
       if (idx == TOOL_LENGTH_OFFSET_AXIS) { wco[idx] += gc_state.tool_length_offset; }
-      if (bit_isfalse(settings.status_report_mask,BITFLAG_RT_STATUS_POSITION_TYPE)) {
+      if (!settings.status_report_mask.position_type) {
         print_position[idx] -= wco[idx];
       }
     }
   }
 
   // Report machine position
-  if (bit_istrue(settings.status_report_mask,BITFLAG_RT_STATUS_POSITION_TYPE)) {
+  if (settings.status_report_mask.position_type) {
     printPgmString(PSTR("|MPos:"));
   } else {
     printPgmString(PSTR("|WPos:"));
@@ -518,7 +517,7 @@ void report_realtime_status()
 
   // Returns planner and serial read buffer states.
   #ifdef REPORT_FIELD_BUFFER_STATE
-    if (bit_istrue(settings.status_report_mask,BITFLAG_RT_STATUS_BUFFER_STATE)) {
+    if (settings.status_report_mask.buffer_state) {
       printPgmString(PSTR("|Bf:"));
       print_uint8_base10(plan_get_block_buffer_available());
       serial_write(',');
@@ -554,24 +553,31 @@ void report_realtime_status()
   #endif
 
   #ifdef REPORT_FIELD_PIN_STATE
-    uint8_t lim_pin_state = limits_get_state();
-    uint8_t ctrl_pin_state = system_control_get_state();
+    axis_signals_t lim_pin_state = (axis_signals_t)limits_get_state();
+    controlsignals_t ctrl_pin_state = system_control_get_state();
     uint8_t prb_pin_state = probe_get_state();
-    if (lim_pin_state | ctrl_pin_state | prb_pin_state) {
+    if (lim_pin_state.value | ctrl_pin_state.value | prb_pin_state) {
       printPgmString(PSTR("|Pn:"));
       if (prb_pin_state) { serial_write('P'); }
-      if (lim_pin_state) {
-        if (bit_istrue(lim_pin_state,bit(X_AXIS))) { serial_write('X'); }
-        if (bit_istrue(lim_pin_state,bit(Y_AXIS))) { serial_write('Y'); }
-        if (bit_istrue(lim_pin_state,bit(Z_AXIS))) { serial_write('Z'); }
+      if (lim_pin_state.value) {
+        if(lim_pin_state.x)
+            serial_write('X');
+        if(lim_pin_state.y)
+            serial_write('Y');
+        if (lim_pin_state.z)
+            serial_write('Z');
       }
-      if (ctrl_pin_state) {
+      if (ctrl_pin_state.value) {
         #ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
-          if (bit_istrue(ctrl_pin_state,CONTROL_PIN_INDEX_SAFETY_DOOR)) { serial_write('D'); }
+          if (ctrl_pin_state.safety_door)
+              serial_write('D');
         #endif
-        if (bit_istrue(ctrl_pin_state,CONTROL_PIN_INDEX_RESET)) { serial_write('R'); }
-        if (bit_istrue(ctrl_pin_state,CONTROL_PIN_INDEX_FEED_HOLD)) { serial_write('H'); }
-        if (bit_istrue(ctrl_pin_state,CONTROL_PIN_INDEX_CYCLE_START)) { serial_write('S'); }
+        if (ctrl_pin_state.reset)
+            serial_write('R');
+        if (ctrl_pin_state.feed_hold)
+            serial_write('H');
+        if (ctrl_pin_state.cycle_start)
+            serial_write('S');
       }
     }
   #endif

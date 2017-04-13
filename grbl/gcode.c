@@ -131,8 +131,8 @@ uint8_t gc_execute_line(char *line)
     // a good enough comprimise and catch most all non-integer errors. To make it compliant,
     // we would simply need to change the mantissa to int16, but this add compiled flash space.
     // Maybe update this later.
-    int_value = trunc(value);
-    mantissa =  round(100.0f*(value - int_value)); // Compute mantissa for Gxx.x commands.
+    int_value = (uint8_t)truncf(value);
+    mantissa = (uint16_t)roundf(100.0f*(value - int_value)); // Compute mantissa for Gxx.x commands.
     // NOTE: Rounding must be used to catch small floating point errors.
 
     // Check if the g-code word is supported or errors due to modal group violations or has
@@ -312,7 +312,7 @@ uint8_t gc_execute_line(char *line)
           case 'J': word_bit = WORD_J; gc_block.values.ijk[Y_AXIS] = value; ijk_words |= (1<<Y_AXIS); break;
           case 'K': word_bit = WORD_K; gc_block.values.ijk[Z_AXIS] = value; ijk_words |= (1<<Z_AXIS); break;
           case 'L': word_bit = WORD_L; gc_block.values.l = int_value; break;
-          case 'N': word_bit = WORD_N; gc_block.values.n = trunc(value); break;
+          case 'N': word_bit = WORD_N; gc_block.values.n = (int32_t)truncf(value); break;
           case 'P': word_bit = WORD_P; gc_block.values.p = value; break;
           // NOTE: For certain commands, P value must be an integer, but none of these commands are supported.
           case 'Q': word_bit = WORD_Q; gc_block.values.q = value; break; // may be used for user defined mcodes
@@ -877,7 +877,7 @@ uint8_t gc_execute_line(char *line)
   }
 
   // If in laser mode, setup laser power based on current and past parser conditions.
-  if (bit_istrue(settings.flags,BITFLAG_LASER_MODE)) {
+  if (settings.flags.laser_mode) {
     if ( !((gc_block.modal.motion == MOTION_MODE_LINEAR) || (gc_block.modal.motion == MOTION_MODE_CW_ARC)
         || (gc_block.modal.motion == MOTION_MODE_CCW_ARC)) ) {
       gc_parser_flags |= GC_PARSER_LASER_DISABLE;

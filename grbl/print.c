@@ -156,7 +156,7 @@ void printFloat(float n, uint8_t decimal_places)
 //  - RateValue: Handles feed rate and current velocity in inches or mm reporting.
 //  - SettingValue: Handles all floating point settings values (always in mm.)
 void printFloat_CoordValue(float n) {
-  if (bit_istrue(settings.flags,BITFLAG_REPORT_INCHES)) {
+  if (settings.flags.report_inches) {
     printFloat(n*INCH_PER_MM,N_DECIMAL_COORDVALUE_INCH);
   } else {
     printFloat(n,N_DECIMAL_COORDVALUE_MM);
@@ -164,7 +164,7 @@ void printFloat_CoordValue(float n) {
 }
 
 void printFloat_RateValue(float n) {
-  if (bit_istrue(settings.flags,BITFLAG_REPORT_INCHES)) {
+  if (settings.flags.report_inches) {
     printFloat(n*INCH_PER_MM,N_DECIMAL_RATEVALUE_INCH);
   } else {
     printFloat(n,N_DECIMAL_RATEVALUE_MM);

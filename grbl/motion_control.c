@@ -34,7 +34,7 @@ void mc_line(float *target, plan_line_data_t *pl_data)
 
   // If enabled, check for soft limit violations. Placed here all line motions are picked up
   // from everywhere in Grbl.
-  if (sys.state != STATE_JOG && bit_istrue(settings.flags,BITFLAG_SOFT_LIMIT_ENABLE)) {
+  if (sys.state != STATE_JOG && settings.flags.soft_limit_enable) {
     // NOTE: Block jog state. Jogging is a special case and soft limits are handled independently.
     limits_soft_check(target);
   }

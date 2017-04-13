@@ -48,6 +48,18 @@
  #define B_MOTOR Y_AXIS // Must be Y_AXIS
 #endif
 
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t x :1,
+                y :1,
+                z :1,
+                a :1,
+                b :1,
+                c :1;
+    };
+} axis_signals_t;
+
 // Conversions
 #define MM_PER_INCH (25.40f)
 #define INCH_PER_MM (0.0393701f)

@@ -52,7 +52,7 @@ bool protocol_main_loop()
 {
   // Perform some machine checks to make sure everything is good to go.
   #ifdef CHECK_LIMITS_AT_INIT
-    if (bit_istrue(settings.flags, BITFLAG_HARD_LIMIT_ENABLE)) {
+    if (settings.flags.hard_limit_enable) {
       if (limits_get_state()) {
         sys.state = STATE_ALARM; // Ensure alarm state is active.
         report_feedback_message(MESSAGE_CHECK_LIMITS);
@@ -439,9 +439,7 @@ void protocol_exec_rt_system()
   }
 
   // Execute overrides.
-  rt_exec = sys_rt_exec_motion_override; // Copy volatile sys_rt_exec_motion_override
-  if (rt_exec) {
-    system_clear_exec_motion_overrides(); // Clear all motion override flags.
+  if ((rt_exec = system_clear_exec_motion_overrides())) {  // Get and clear all motion override flags.
 
     uint8_t new_f_override =  sys.f_override;
     if (rt_exec & EXEC_FEED_OVR_RESET) { new_f_override = DEFAULT_FEED_OVERRIDE; }
@@ -466,9 +464,7 @@ void protocol_exec_rt_system()
     }
   }
 
-  rt_exec = sys_rt_exec_accessory_override;
-  if (rt_exec) {
-    system_clear_exec_accessory_overrides(); // Clear all accessory override flags.
+  if ((rt_exec = system_clear_exec_accessory_overrides())) { // Get and clear all accessory override flags.
 
     // NOTE: Unlike motion overrides, spindle overrides do not require a planner reinitialization.
     uint8_t last_s_override =  sys.spindle_speed_ovr;
@@ -567,7 +563,7 @@ static void protocol_exec_rt_suspend()
       restore_spindle_speed = block->spindle_speed;
     }
     #ifdef DISABLE_LASER_DURING_HOLD
-      if (bit_istrue(settings.flags,BITFLAG_LASER_MODE)) {
+      if (settings.flags.laser_mode) {
         system_set_exec_accessory_override_flag(EXEC_SPINDLE_OVR_STOP);
       }
     #endif
@@ -612,14 +608,14 @@ static void protocol_exec_rt_suspend()
             // current location not exceeding the parking target location, and laser mode disabled.
             // NOTE: State is will remain DOOR, until the de-energizing and retract is complete.
             #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-            if ((bit_istrue(settings.flags,BITFLAG_HOMING_ENABLE)) &&
+            if (settings.flags.homing_enable &&
                             (parking_target[PARKING_AXIS] < PARKING_TARGET) &&
-                            bit_isfalse(settings.flags,BITFLAG_LASER_MODE) &&
+                            !settings.flags.laser_mode &&
                             (sys.override_ctrl == OVERRIDE_PARKING_MOTION)) {
             #else
-            if ((bit_istrue(settings.flags,BITFLAG_HOMING_ENABLE)) &&
+            if (settings.flags.homing_enable) &&
                             (parking_target[PARKING_AXIS] < PARKING_TARGET) &&
-                            bit_isfalse(settings.flags,BITFLAG_LASER_MODE)) {
+                            !settings.flags.laser_mode) {
             #endif
               // Retract spindle by pullout distance. Ensure retraction motion moves away from
               // the workpiece and waypoint motion doesn't exceed the parking target location.
@@ -685,10 +681,9 @@ static void protocol_exec_rt_suspend()
               // Execute fast restore motion to the pull-out position. Parking requires homing enabled.
               // NOTE: State is will remain DOOR, until the de-energizing and retract is complete.
               #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-              if (((settings.flags & (BITFLAG_HOMING_ENABLE|BITFLAG_LASER_MODE)) == BITFLAG_HOMING_ENABLE) &&
-                   (sys.override_ctrl == OVERRIDE_PARKING_MOTION)) {
+              if (settings.flags.homing_enable && !settings.flags.laser_mode && sys.override_ctrl == OVERRIDE_PARKING_MOTION) {
               #else
-              if ((settings.flags & (BITFLAG_HOMING_ENABLE|BITFLAG_LASER_MODE)) == BITFLAG_HOMING_ENABLE) {
+              if (settings.flags.homing_enable && !settings.flags.laser_mode) {
               #endif
                 // Check to ensure the motion doesn't move below pull-out position.
                 if (parking_target[PARKING_AXIS] <= PARKING_TARGET) {
@@ -703,7 +698,7 @@ static void protocol_exec_rt_suspend()
             if (gc_state.modal.spindle != SPINDLE_DISABLE) {
               // Block if safety door re-opened during prior restore actions.
               if (bit_isfalse(sys.suspend,SUSPEND_RESTART_RETRACT)) {
-                if (bit_istrue(settings.flags,BITFLAG_LASER_MODE)) {
+                if (settings.flags.laser_mode) {
                   // When in laser mode, ignore spindle spin-up delay. Set to turn on laser when cycle starts.
                   bit_true(sys.step_control, STEP_CONTROL_UPDATE_SPINDLE_PWM);
                 } else {
@@ -724,10 +719,9 @@ static void protocol_exec_rt_suspend()
             #ifdef PARKING_ENABLE
               // Execute slow plunge motion from pull-out position to resume position.
               #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-              if (((settings.flags & (BITFLAG_HOMING_ENABLE|BITFLAG_LASER_MODE)) == BITFLAG_HOMING_ENABLE) &&
-                   (sys.override_ctrl == OVERRIDE_PARKING_MOTION)) {
+              if (settings.flags.homing_enable && !settings.flags.laser_mode && sys.override_ctrl == OVERRIDE_PARKING_MOTION) {
               #else
-              if ((settings.flags & (BITFLAG_HOMING_ENABLE|BITFLAG_LASER_MODE)) == BITFLAG_HOMING_ENABLE) {
+              if (settings.flags.homing_enable && !settings.flags.laser_mode) {
               #endif
                 // Block if safety door re-opened during prior restore actions.
                 if (bit_isfalse(sys.suspend,SUSPEND_RESTART_RETRACT)) {
@@ -768,7 +762,7 @@ static void protocol_exec_rt_suspend()
           } else if (sys.spindle_stop_ovr & (SPINDLE_STOP_OVR_RESTORE | SPINDLE_STOP_OVR_RESTORE_CYCLE)) {
             if (gc_state.modal.spindle != SPINDLE_DISABLE) {
               report_feedback_message(MESSAGE_SPINDLE_RESTORE);
-              if (bit_istrue(settings.flags,BITFLAG_LASER_MODE)) {
+              if (settings.flags.laser_mode) {
                 // When in laser mode, ignore spindle spin-up delay. Set to turn on laser when cycle starts.
                 bit_true(sys.step_control, STEP_CONTROL_UPDATE_SPINDLE_PWM);
               } else {

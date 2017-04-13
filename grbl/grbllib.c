@@ -87,7 +87,7 @@ int grbl_enter (void)
     // not after disabling the alarm locks. Prevents motion startup blocks from crashing into
     // things uncontrollably. Very bad.
     #ifdef HOMING_INIT_LOCK
-      if (bit_istrue(settings.flags,BITFLAG_HOMING_ENABLE)) { sys.state = STATE_ALARM; }
+      if (settings.flags.homing_enable) { sys.state = STATE_ALARM; }
     #endif
 
     // Grbl initialization loop upon power-up or a system abort. For the latter, all processes
