@@ -30,8 +30,6 @@ int32_t sys_probe_position[N_AXIS]; // Last probe position in machine coordinate
 volatile uint8_t sys_probe_state;   // Probing state value.  Used to coordinate the probing cycle with stepper ISR.
 volatile uint8_t sys_rt_exec_state;   // Global realtime executor bitflag variable for state management. See EXEC bitmasks.
 volatile uint8_t sys_rt_exec_alarm;   // Global realtime executor bitflag variable for setting various alarms.
-volatile uint8_t sys_rt_exec_motion_override; // Global realtime executor bitflag variable for motion-based overrides.
-volatile uint8_t sys_rt_exec_accessory_override; // Global realtime executor bitflag variable for spindle/coolant overrides.
 
 HAL hal;
 
@@ -105,8 +103,7 @@ int grbl_enter (void)
       sys_probe_state = 0;
       sys_rt_exec_state = 0;
       sys_rt_exec_alarm = 0;
-      sys_rt_exec_motion_override = 0;
-      sys_rt_exec_accessory_override = 0;
+      flush_override_buffers();
 
       // Reset Grbl primary systems.
       serial_reset_read_buffer(); // Clear serial read buffer

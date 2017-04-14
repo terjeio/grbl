@@ -56,6 +56,7 @@
 #include "stepper.h"
 #include "jog.h"
 #include "system.h"
+#include "override.h"
 
 // ---------------------------------------------------------------------------------------
 // COMPILE-TIME ERROR CHECKING OF DEFINE VALUES:

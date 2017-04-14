@@ -24,10 +24,6 @@
 
 #include "grbl.h"
 
-#define get_step_pin_mask(a) (1<<a)
-#define get_direction_pin_mask(a) (1<<a)
-#define get_limit_pin_mask(a) (1<<a)
-
 // Version of the EEPROM data. Will be used to migrate existing data from older versions of Grbl
 // when firmware is upgraded. Always stored in byte 0 of eeprom
 #define SETTINGS_VERSION 10  // NOTE: Check settings_reset() when moving to next version.
@@ -96,8 +92,8 @@ typedef struct {
 
   // Remaining Grbl settings
   uint8_t pulse_microseconds;
-  uint8_t step_invert_mask;
-  uint8_t dir_invert_mask;
+  axes_signals_t step_invert_mask;
+  axes_signals_t dir_invert_mask;
   uint8_t stepper_idle_lock_time; // If max value 255, steppers do not disable.
   reportmask_t status_report_mask; // Mask to indicate desired report data.
   float junction_deviation;

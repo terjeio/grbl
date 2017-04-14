@@ -90,12 +90,12 @@ uint8_t gc_execute_line(char *line)
   // Initialize command and value words and parser flags variables.
   uint16_t command_words = 0; // Tracks G and M command words. Also used for modal group violations.
   uint16_t value_words = 0; // Tracks value words.
-  uint8_t gc_parser_flags = GC_PARSER_NONE;
+  gc_parser_flags_t gc_parser_flags = {0};
 
   // Determine if the line is a jogging motion or a normal g-code block.
   if (line[0] == '$') { // NOTE: `$J=` already parsed when passed to this function.
     // Set G1 and G94 enforced modes to ensure accurate error checks.
-    gc_parser_flags |= GC_PARSER_JOG_MOTION;
+    gc_parser_flags.jog_motion = true;
     gc_block.modal.motion = MOTION_MODE_LINEAR;
     gc_block.modal.feed_rate = FEED_RATE_MODE_UNITS_PER_MIN;
     #ifdef USE_LINE_NUMBERS
@@ -110,7 +110,7 @@ uint8_t gc_execute_line(char *line)
      words, and for negative values set for the value words F, N, P, T, and S. */
 
   uint8_t word_bit; // Bit-value for assigning tracking variables
-  uint8_t char_counter = gc_parser_flags & GC_PARSER_JOG_MOTION ? 3 /* Start parsing after `$J=` */ : 0;
+  uint8_t char_counter = gc_parser_flags.jog_motion ? 3 /* Start parsing after `$J=` */ : 0;
   char letter;
   float value;
   uint8_t int_value = 0;
@@ -395,7 +395,7 @@ uint8_t gc_execute_line(char *line)
   // [2. Set feed rate mode ]: G93 F word missing with G1,G2/3 active, implicitly or explicitly. Feed rate
   //   is not defined after switching to G94 from G93.
   // NOTE: For jogging, ignore prior feed rate mode. Enforce G94 and check for required F word.
-  if (gc_parser_flags & GC_PARSER_JOG_MOTION) {
+  if (gc_parser_flags.jog_motion) {
     if (bit_isfalse(value_words,bit(WORD_F))) { FAIL(STATUS_GCODE_UNDEFINED_FEED_RATE); }
     if (gc_block.modal.units == UNITS_MODE_INCHES) { gc_block.values.f *= MM_PER_INCH; }
   } else {
@@ -679,7 +679,7 @@ uint8_t gc_execute_line(char *line)
           if (!axis_words) { axis_command = AXIS_COMMAND_NONE; }
           break;
         case MOTION_MODE_CW_ARC:
-          gc_parser_flags |= GC_PARSER_ARC_IS_CLOCKWISE; // No break intentional.
+          gc_parser_flags.arc_is_clockwise = true; // No break intentional.
         case MOTION_MODE_CCW_ARC:
           // [G2/3 Errors All-Modes]: Feed rate undefined.
           // [G2/3 Radius-Mode Errors]: No axis words in selected plane. Target point is same as current.
@@ -818,10 +818,10 @@ uint8_t gc_execute_line(char *line)
           }
           break;
         case MOTION_MODE_PROBE_TOWARD_NO_ERROR: case MOTION_MODE_PROBE_AWAY_NO_ERROR:
-          gc_parser_flags |= GC_PARSER_PROBE_IS_NO_ERROR; // No break intentional.
+          gc_parser_flags.probe_is_no_error = true; // No break intentional.
         case MOTION_MODE_PROBE_TOWARD: case MOTION_MODE_PROBE_AWAY:
           if ((gc_block.modal.motion == MOTION_MODE_PROBE_AWAY) ||
-              (gc_block.modal.motion == MOTION_MODE_PROBE_AWAY_NO_ERROR)) { gc_parser_flags |= GC_PARSER_PROBE_IS_AWAY; }
+              (gc_block.modal.motion == MOTION_MODE_PROBE_AWAY_NO_ERROR)) { gc_parser_flags.probe_is_away = true; }
           // [G38 Errors]: Target is same current. No axis words. Cutter compensation is enabled. Feed rate
           //   is undefined. Probe is triggered. NOTE: Probe check moved to probe cycle. Instead of returning
           //   an error, it issues an alarm to prevent further motion to the probe. It's also done there to
@@ -837,7 +837,7 @@ uint8_t gc_execute_line(char *line)
 
   // [0. Non-specific error-checks]: Complete unused value words check, i.e. IJK used when in arc
   // radius mode, or axis words that aren't used in the block.
-  if (gc_parser_flags & GC_PARSER_JOG_MOTION) {
+  if (gc_parser_flags.jog_motion) {
     // Jogging only uses the F feed rate and XYZ value words. N is valid, but S and T are invalid.
     bit_false(value_words,(bit(WORD_N)|bit(WORD_F)));
   } else {
@@ -861,7 +861,7 @@ uint8_t gc_execute_line(char *line)
   // NOTE: G-code parser state is not updated, except the position to ensure sequential jog
   // targets are computed correctly. The final parser position after a jog is updated in
   // protocol_execute_realtime() when jogging completes or is canceled.
-  if (gc_parser_flags & GC_PARSER_JOG_MOTION) {
+  if (gc_parser_flags.jog_motion) {
     // Only distance and unit modal commands and G53 absolute override command are allowed.
     // NOTE: Feed rate word and axis word checks have already been performed in STEP 3.
     if (command_words & ~(bit(MODAL_GROUP_G3) | bit(MODAL_GROUP_G6 | bit(MODAL_GROUP_G0))) ) { FAIL(STATUS_INVALID_JOG_COMMAND) };
@@ -880,27 +880,27 @@ uint8_t gc_execute_line(char *line)
   if (settings.flags.laser_mode) {
     if ( !((gc_block.modal.motion == MOTION_MODE_LINEAR) || (gc_block.modal.motion == MOTION_MODE_CW_ARC)
         || (gc_block.modal.motion == MOTION_MODE_CCW_ARC)) ) {
-      gc_parser_flags |= GC_PARSER_LASER_DISABLE;
+      gc_parser_flags.laser_disable = true;
     }
 
     // Any motion mode with axis words is allowed to be passed from a spindle speed update.
     // NOTE: G1 and G0 without axis words sets axis_command to none. G28/30 are intentionally omitted.
     // TODO: Check sync conditions for M3 enabled motions that don't enter the planner. (zero length).
     if (axis_words && (axis_command == AXIS_COMMAND_MOTION_MODE)) {
-      gc_parser_flags |= GC_PARSER_LASER_ISMOTION;
+      gc_parser_flags.laser_is_motion = true;
     } else {
       // M3 constant power laser requires planner syncs to update the laser when changing between
       // a G1/2/3 motion mode state and vice versa when there is no motion in the line.
       if (gc_state.modal.spindle == SPINDLE_ENABLE_CW) {
         if ((gc_state.modal.motion == MOTION_MODE_LINEAR) || (gc_state.modal.motion == MOTION_MODE_CW_ARC)
             || (gc_state.modal.motion == MOTION_MODE_CCW_ARC)) {
-          if (bit_istrue(gc_parser_flags,GC_PARSER_LASER_DISABLE)) {
-            gc_parser_flags |= GC_PARSER_LASER_FORCE_SYNC; // Change from G1/2/3 motion mode.
+          if (gc_parser_flags.laser_disable) {
+            gc_parser_flags.laser_force_sync = true; // Change from G1/2/3 motion mode.
           }
         } else {
           // When changing to a G1 motion mode without axis words from a non-G1/2/3 motion mode.
-          if (bit_isfalse(gc_parser_flags,GC_PARSER_LASER_DISABLE)) {
-            gc_parser_flags |= GC_PARSER_LASER_FORCE_SYNC;
+          if (!gc_parser_flags.laser_disable) {
+            gc_parser_flags.laser_force_sync = true;;
           }
         }
       }
@@ -925,13 +925,11 @@ uint8_t gc_execute_line(char *line)
   pl_data->feed_rate = gc_state.feed_rate; // Record data for planner use.
 
   // [4. Set spindle speed ]:
-  if ((gc_state.spindle_speed != gc_block.values.s) || bit_istrue(gc_parser_flags,GC_PARSER_LASER_FORCE_SYNC)) {
+  if ((gc_state.spindle_speed != gc_block.values.s) || gc_parser_flags.laser_force_sync) {
     if (gc_state.modal.spindle != SPINDLE_DISABLE) {
       #ifdef VARIABLE_SPINDLE
-        if (bit_isfalse(gc_parser_flags,GC_PARSER_LASER_ISMOTION)) {
-          if (bit_istrue(gc_parser_flags,GC_PARSER_LASER_DISABLE)) {
-             spindle_sync(gc_state.modal.spindle, 0.0f);
-          } else { spindle_sync(gc_state.modal.spindle, gc_block.values.s); }
+        if (!gc_parser_flags.laser_is_motion) {
+            spindle_sync(gc_state.modal.spindle, gc_parser_flags.laser_disable ? 0.0f : gc_block.values.s);
         }
       #else
         spindle_sync(gc_state.modal.spindle, 0.0f);
@@ -940,7 +938,7 @@ uint8_t gc_execute_line(char *line)
     gc_state.spindle_speed = gc_block.values.s; // Update spindle speed state.
   }
   // NOTE: Pass zero spindle speed for all restricted laser motions.
-  if (bit_isfalse(gc_parser_flags,GC_PARSER_LASER_DISABLE)) {
+  if (!gc_parser_flags.laser_disable) {
     pl_data->spindle_speed = gc_state.spindle_speed; // Record data for planner use.
   } // else { pl_data->spindle_speed = 0.0; } // Initialized as zero already.
 
@@ -1068,7 +1066,7 @@ uint8_t gc_execute_line(char *line)
         mc_line(gc_block.values.xyz, pl_data);
       } else if ((gc_state.modal.motion == MOTION_MODE_CW_ARC) || (gc_state.modal.motion == MOTION_MODE_CCW_ARC)) {
         mc_arc(gc_block.values.xyz, pl_data, gc_state.position, gc_block.values.ijk, gc_block.values.r,
-            axis_0, axis_1, axis_linear, bit_istrue(gc_parser_flags,GC_PARSER_ARC_IS_CLOCKWISE));
+            axis_0, axis_1, axis_linear, gc_parser_flags.arc_is_clockwise);
       } else {
         // NOTE: gc_block.values.xyz is returned from mc_probe_cycle with the updated position value. So
         // upon a successful probing cycle, the machine position and the returned value should be the same.

@@ -169,16 +169,20 @@
 #endif
 
 // Define gcode parser flags for handling special cases.
-#define GC_PARSER_NONE                  0 // Must be zero.
-#define GC_PARSER_JOG_MOTION            bit(0)
-#define GC_PARSER_CHECK_MANTISSA        bit(1)
-#define GC_PARSER_ARC_IS_CLOCKWISE      bit(2)
-#define GC_PARSER_PROBE_IS_AWAY         bit(3)
-#define GC_PARSER_PROBE_IS_NO_ERROR     bit(4)
-#define GC_PARSER_LASER_FORCE_SYNC      bit(5)
-#define GC_PARSER_LASER_DISABLE         bit(6)
-#define GC_PARSER_LASER_ISMOTION        bit(7)
 
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t jog_motion        :1,
+                check_mantissa    :1,
+                arc_is_clockwise  :1,
+                probe_is_away     :1,
+                probe_is_no_error :1,
+                laser_force_sync  :1,
+                laser_disable     :1,
+                laser_is_motion   :1;
+    };
+} gc_parser_flags_t;
 
 // NOTE: When this struct is zeroed, the above defines set the defaults for the system.
 typedef struct {

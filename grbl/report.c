@@ -183,8 +183,8 @@ void report_grbl_settings() {
   // Print Grbl settings.
   report_util_uint8_setting(0,settings.pulse_microseconds);
   report_util_uint8_setting(1,settings.stepper_idle_lock_time);
-  report_util_uint8_setting(2,settings.step_invert_mask);
-  report_util_uint8_setting(3,settings.dir_invert_mask);
+  report_util_uint8_setting(2,settings.step_invert_mask.value);
+  report_util_uint8_setting(3,settings.dir_invert_mask.value);
   report_util_uint8_setting(4, settings.flags.invert_st_enable);
   report_util_uint8_setting(5, settings.flags.invert_limit_pins);
   report_util_uint8_setting(6, settings.flags.invert_probe_pin);
@@ -471,9 +471,9 @@ void report_realtime_status()
     case STATE_IDLE: printPgmString(PSTR("Idle")); break;
     case STATE_CYCLE: printPgmString(PSTR("Run")); break;
     case STATE_HOLD:
-      if (!(sys.suspend & SUSPEND_JOG_CANCEL)) {
+      if (!sys.suspend.jog_cancel) {
         printPgmString(PSTR("Hold:"));
-        serial_write(sys.suspend & SUSPEND_HOLD_COMPLETE ? '0' /*Ready to resume*/ : '1' /*Actively holding*/ );
+        serial_write(sys.suspend.hold_complete ? '0' /*Ready to resume*/ : '1' /*Actively holding*/ );
         break;
       } // Continues to print jog state during jog cancel.
     case STATE_JOG: printPgmString(PSTR("Jog")); break;
@@ -482,11 +482,11 @@ void report_realtime_status()
     case STATE_CHECK_MODE: printPgmString(PSTR("Check")); break;
     case STATE_SAFETY_DOOR:
       printPgmString(PSTR("Door:"));
-      if (sys.suspend & SUSPEND_INITIATE_RESTORE) {
+      if (sys.suspend.initiate_restore) {
         serial_write('3'); // Restoring
       } else {
-        if (sys.suspend & SUSPEND_RETRACT_COMPLETE) {
-            serial_write(sys.suspend & SUSPEND_SAFETY_DOOR_AJAR ? '1' /*Door ajar*/ : '0' /*Door closed and ready to resume*/);
+        if (sys.suspend.retract_complete) {
+            serial_write(sys.suspend.safety_door_ajar ? '1' /*Door ajar*/ : '0' /*Door closed and ready to resume*/);
         } else {
           serial_write('2'); // Retracting
         }
@@ -553,7 +553,7 @@ void report_realtime_status()
   #endif
 
   #ifdef REPORT_FIELD_PIN_STATE
-    axis_signals_t lim_pin_state = (axis_signals_t)limits_get_state();
+    axes_signals_t lim_pin_state = (axes_signals_t)limits_get_state();
     controlsignals_t ctrl_pin_state = system_control_get_state();
     uint8_t prb_pin_state = probe_get_state();
     if (lim_pin_state.value | ctrl_pin_state.value | prb_pin_state) {

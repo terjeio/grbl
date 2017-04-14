@@ -67,7 +67,7 @@
 typedef struct {
   uint32_t steps[N_AXIS];
   uint32_t step_event_count;
-  uint8_t direction_bits;
+  axes_signals_t direction_bits;
   #ifdef VARIABLE_SPINDLE
     uint8_t is_pwm_rate_adjusted; // Tracks motions that require constant laser power/rate
   #endif
@@ -99,8 +99,8 @@ typedef struct {
            counter_z;
   uint8_t execute_step;     // Flags step execution for each interrupt.
   uint8_t step_pulse_time;  // Step pulse reset time after step rise
-  uint8_t step_outbits;         // The next stepping-bits to be output
-  uint8_t dir_outbits;
+  axes_signals_t step_outbits;         // The next stepping-bits to be output
+  axes_signals_t dir_outbits;
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     uint32_t steps[N_AXIS];
   #endif
@@ -206,7 +206,7 @@ void st_wake_up()
 	hal.stepper_enable(true);
 
   // Initialize stepper output bits to ensure first ISR call does not step.
-    st.step_outbits = 0;
+    st.step_outbits.value = 0;
     st.spindle_pwm  = SPINDLE_PWM_OFF_VALUE;
 
 #ifdef STEP_PULSE_DELAY
@@ -298,7 +298,7 @@ void stepper_driver_interrupt_handler (void)
 	// Enable step pulse reset timer so that The Stepper Port Reset Interrupt can reset the signal after
 	// exactly settings.pulse_microseconds microseconds, independent of the main Timer1 prescaler.
 
-	if(st.step_outbits)
+	if(st.step_outbits.value)
 		hal.stepper_pulse_start(st.dir_outbits, st.step_outbits, st.spindle_pwm);
 
   // If there is no step segment, attempt to pop one from the stepper buffer
@@ -356,7 +356,7 @@ void stepper_driver_interrupt_handler (void)
   if (sys_probe_state == PROBE_ACTIVE) { probe_state_monitor(); }
 
   // Reset step out bits.
-  st.step_outbits = 0;
+  st.step_outbits.value = 0;
 
   // Execute step displacement profile by Bresenham line algorithm
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
@@ -365,9 +365,9 @@ void stepper_driver_interrupt_handler (void)
     st.counter_x += st.exec_block->steps[X_AXIS];
   #endif
   if (st.counter_x > st.exec_block->step_event_count) {
-    st.step_outbits |= (1<<X_STEP_BIT);
+    st.step_outbits.x = 1;
     st.counter_x -= st.exec_block->step_event_count;
-    sys_position[X_AXIS] = sys_position[X_AXIS] + (st.exec_block->direction_bits & (1<<X_DIRECTION_BIT) ? -1 : 1);
+    sys_position[X_AXIS] = sys_position[X_AXIS] + (st.exec_block->direction_bits.x ? -1 : 1);
   }
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_y += st.steps[Y_AXIS];
@@ -375,9 +375,9 @@ void stepper_driver_interrupt_handler (void)
     st.counter_y += st.exec_block->steps[Y_AXIS];
   #endif
   if (st.counter_y > st.exec_block->step_event_count) {
-    st.step_outbits |= (1<<Y_STEP_BIT);
+    st.step_outbits.y = 1;
     st.counter_y -= st.exec_block->step_event_count;
-    sys_position[Y_AXIS] = sys_position[Y_AXIS] + (st.exec_block->direction_bits & (1<<Y_DIRECTION_BIT) ? -1 : 1);
+    sys_position[Y_AXIS] = sys_position[Y_AXIS] + (st.exec_block->direction_bits.y ? -1 : 1);
   }
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_z += st.steps[Z_AXIS];
@@ -385,13 +385,14 @@ void stepper_driver_interrupt_handler (void)
     st.counter_z += st.exec_block->steps[Z_AXIS];
   #endif
   if (st.counter_z > st.exec_block->step_event_count) {
-    st.step_outbits |= (1<<Z_STEP_BIT);
+    st.step_outbits.z = 1;
     st.counter_z -= st.exec_block->step_event_count;
-    sys_position[Z_AXIS] = sys_position[Z_AXIS] + (st.exec_block->direction_bits & (1<<Z_DIRECTION_BIT) ? -1 : 1);
+    sys_position[Z_AXIS] = sys_position[Z_AXIS] + (st.exec_block->direction_bits.z ? -1 : 1);
   }
 
   // During a homing cycle, lock out and prevent desired axes from moving.
-  if (sys.state == STATE_HOMING) { st.step_outbits &= sys.homing_axis_lock; }
+  if (sys.state == STATE_HOMING)
+      st.step_outbits.value &= sys.homing_axis_lock.value;
 
   st.step_count--; // Decrement step events count
   if (st.step_count == 0) {
@@ -420,11 +421,9 @@ void st_reset()
   segment_buffer_head = 0; // empty = tail
   segment_next_head = 1;
 
-  st.dir_outbits = 0; // Initialize direction bits to default.
-
   // Initialize step and direction port pins.
-  hal.stepper_set_outputs(0);
-  hal.stepper_set_directions(0);
+  hal.stepper_set_outputs(st.step_outbits);
+  hal.stepper_set_directions(st.dir_outbits);
 
 }
 

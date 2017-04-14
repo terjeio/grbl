@@ -108,7 +108,8 @@ void delay_sec(float seconds, uint8_t mode)
         } else { // DELAY_MODE_SYS_SUSPEND
           // Execute rt_system() only to avoid nesting suspend loops.
           protocol_exec_rt_system();
-          if (sys.suspend & SUSPEND_RESTART_RETRACT) { return; } // Bail, if safety door reopens.
+          if (sys.suspend.restart_retract) // Bail, if safety door reopens.
+              return;
         }
         delay_ms(DWELL_TIME_STEP); // Delay DWELL_TIME_STEP increment
     }

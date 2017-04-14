@@ -58,7 +58,7 @@ typedef union {
                 b :1,
                 c :1;
     };
-} axis_signals_t;
+} axes_signals_t;
 
 // Conversions
 #define MM_PER_INCH (25.40f)

@@ -42,7 +42,7 @@ typedef struct HAL {
 	void (*initMCU)(void);
 	bool (*releaseMCU)(void);
     void (*limits_enable)(bool on);
-	uint8_t (*limits_get_state)(void);
+    axes_signals_t (*limits_get_state)(void);
 	void (*coolant_set_state)(uint8_t mode);
 	uint8_t (*coolant_get_state)(void);
 	void (*delay_ms)(uint16_t ms);
@@ -57,10 +57,10 @@ typedef struct HAL {
 	void (*stepper_wake_up)(uint8_t delay);
 	void (*stepper_go_idle)(void);
 	void (*stepper_enable)(bool on);
-	void (*stepper_set_outputs)(uint8_t step_outbits);
-	void (*stepper_set_directions)(uint8_t dir_outbits);
+	void (*stepper_set_outputs)(axes_signals_t step_outbits);
+	void (*stepper_set_directions)(axes_signals_t dir_outbits);
 	void (*stepper_cycles_per_tick)(uint32_t cycles_per_tick);
-	void (*stepper_pulse_start)(uint8_t dir_outbits, uint8_t step_outbits, uint32_t spindle_pwm);
+	void (*stepper_pulse_start)(axes_signals_t dir_outbits, axes_signals_t step_outbits, uint32_t spindle_pwm);
 	uint16_t (*serial_get_rx_buffer_size)(void);
 	uint16_t (*serial_get_rx_buffer_available)(void);
 	void (*serial_write)(uint8_t data);
@@ -83,7 +83,7 @@ typedef struct HAL {
 	// callbacks - set up by library before MCU init
 	bool (*protocol_process_realtime)(int32_t data);
 	void (*stepper_interrupt_callback)(void);
-	void (*limit_interrupt_callback)(uint8_t state);
+	void (*limit_interrupt_callback)(axes_signals_t state);
 	void (*control_interrupt_callback)(controlsignals_t signals);
 	bool (*protocol_enqueue_gcode)(char *data);
 	bool hasEEPROM;

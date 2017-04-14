@@ -369,7 +369,7 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
 
     // Set direction bits. Bit enabled always means direction is negative.
     if (delta_mm < 0.0f)
-        block->direction_bits |= get_direction_pin_mask(idx);
+        block->direction_bits.value |= bit(idx);
 
   } while(idx);
 

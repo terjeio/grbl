@@ -204,7 +204,7 @@ void mc_homing_cycle(uint8_t cycle_mask)
   // with machines with limits wired on both ends of travel to one limit pin.
   // TODO: Move the pin-specific LIMIT_PIN call to limits.c as a function.
   #ifdef LIMITS_TWO_SWITCHES_ON_AXES
-    if (limits_get_state()) {
+    if (limits_get_state().value) {
       mc_reset(); // Issue system reset and ensure spindle and coolant are shutdown.
       system_set_exec_alarm(EXEC_ALARM_HARD_LIMIT);
       return;
@@ -248,7 +248,7 @@ void mc_homing_cycle(uint8_t cycle_mask)
 
 // Perform tool length probe cycle. Requires probe switch.
 // NOTE: Upon probe failure, the program will be stopped and placed into ALARM state.
-uint8_t mc_probe_cycle(float *target, plan_line_data_t *pl_data, uint8_t parser_flags)
+uint8_t mc_probe_cycle(float *target, plan_line_data_t *pl_data, gc_parser_flags_t parser_flags)
 {
   // TODO: Need to update this cycle so it obeys a non-auto cycle start.
   if (sys.state == STATE_CHECK_MODE) { return(GC_PROBE_CHECK_MODE); }
@@ -258,8 +258,8 @@ uint8_t mc_probe_cycle(float *target, plan_line_data_t *pl_data, uint8_t parser_
   if (sys.abort) { return(GC_PROBE_ABORT); } // Return if system reset has been issued.
 
   // Initialize probing control variables
-  uint8_t is_probe_away = bit_istrue(parser_flags,GC_PARSER_PROBE_IS_AWAY);
-  uint8_t is_no_error = bit_istrue(parser_flags,GC_PARSER_PROBE_IS_NO_ERROR);
+  bool is_probe_away = parser_flags.probe_is_away;
+  bool is_no_error = parser_flags.probe_is_no_error;
   sys.probe_succeeded = false; // Re-initialize probe history before beginning cycle.
   probe_configure_invert_mask(is_probe_away);
 

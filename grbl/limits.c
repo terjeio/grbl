@@ -42,7 +42,7 @@
 // special pinout for an e-stop, but it is generally recommended to just directly connect
 // your e-stop switch to the Arduino reset pin, since it is the most correct way to do this.
 
-void limit_interrupt_handler(uint8_t state) // DEFAULT: Limit pin change interrupt process.
+void limit_interrupt_handler(axes_signals_t state) // DEFAULT: Limit pin change interrupt process.
   {
     // Ignore limit switches if already in an alarm state or in-process of executing an alarm.
     // When in the alarm state, Grbl should have been reset or will force a reset, so any pending
@@ -53,7 +53,7 @@ void limit_interrupt_handler(uint8_t state) // DEFAULT: Limit pin change interru
       if (!(sys_rt_exec_alarm)) {
         #ifdef HARD_LIMIT_FORCE_STATE_CHECK
           // Check limit pin state.
-          if (state) {
+          if (state.value) {
             mc_reset(); // Initiate system kill.
             system_set_exec_alarm(EXEC_ALARM_HARD_LIMIT); // Indicate hard limit critical event
           }
@@ -93,9 +93,9 @@ void limits_go_home(uint8_t cycle_mask)
   uint8_t idx;
   for (idx=0; idx<N_AXIS; idx++) {
     // Initialize step pin masks
-    step_pin[idx] = get_step_pin_mask(idx);
+    step_pin[idx] = bit(idx);
     #ifdef COREXY
-      if ((idx==A_MOTOR)||(idx==B_MOTOR)) { step_pin[idx] = (get_step_pin_mask(X_AXIS)|get_step_pin_mask(Y_AXIS)); }
+      if ((idx==A_MOTOR)||(idx==B_MOTOR)) { step_pin[idx] = (bit(X_AXIS)|bit(Y_AXIS)); }
     #endif
 
     if (bit_istrue(cycle_mask,bit(idx))) {
@@ -148,7 +148,7 @@ void limits_go_home(uint8_t cycle_mask)
 
     }
     homing_rate *= sqrtf(n_active_axis); // [sqrt(N_AXIS)] Adjust so individual axes all move at homing rate.
-    sys.homing_axis_lock = axislock;
+    sys.homing_axis_lock.value = axislock;
 
     // Perform homing cycle. Planner buffer should be empty, as required to initiate the homing cycle.
     pl_data->feed_rate = homing_rate; // Set current homing rate.
@@ -160,7 +160,7 @@ void limits_go_home(uint8_t cycle_mask)
     do {
       if (approach) {
         // Check limit state. Lock out cycle axes when they change.
-        limit_state = limits_get_state();
+        limit_state = limits_get_state().value;
         for (idx=0; idx<N_AXIS; idx++) {
           if (axislock & step_pin[idx]) {
             if (limit_state & (1 << idx)) {
@@ -173,7 +173,7 @@ void limits_go_home(uint8_t cycle_mask)
             }
           }
         }
-        sys.homing_axis_lock = axislock;
+        sys.homing_axis_lock.value = axislock;
       }
 
       st_prep_buffer(); // Check and prep segment buffer. NOTE: Should take no longer than 200us.
@@ -186,7 +186,7 @@ void limits_go_home(uint8_t cycle_mask)
         // Homing failure condition: Safety door was opened.
         if (rt_exec & EXEC_SAFETY_DOOR) { system_set_exec_alarm(EXEC_ALARM_HOMING_FAIL_DOOR); }
         // Homing failure condition: Limit switch still engaged after pull-off motion
-        if (!approach && (limits_get_state() & cycle_mask)) { system_set_exec_alarm(EXEC_ALARM_HOMING_FAIL_PULLOFF); }
+        if (!approach && (limits_get_state().value & cycle_mask)) { system_set_exec_alarm(EXEC_ALARM_HOMING_FAIL_PULLOFF); }
         // Homing failure condition: Limit switch not found during approach.
         if (approach && (rt_exec & EXEC_CYCLE_STOP)) { system_set_exec_alarm(EXEC_ALARM_HOMING_FAIL_APPROACH); }
         if (sys_rt_exec_alarm) {

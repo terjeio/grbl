@@ -1,9 +1,11 @@
 /*
-  limits.h - code pertaining to limit-switches and performing the homing cycle
+  override.h - An embedded CNC Controller with rs274/ngc (g-code) support
+
+  Buffer handlers for real-time override commands
+
   Part of Grbl
 
-  Copyright (c) 2012-2015 Sungeun K. Jeon
-  Copyright (c) 2009-2011 Simen Svale Skogsrud
+  Copyright (c) 2016-2017 Terje Io
 
   Grbl is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,19 +21,16 @@
   along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef limits_h
-#define limits_h
+#ifndef __OVERRIDE_H__
+#define __OVERRIDE_H__
 
-#define limits_get_state() hal.limits_get_state()
-#define limits_init() hal.limits_enable(true)
-#define limits_disable() hal.limits_enable(false)
+#define FEED_OVR_BUFSIZE 16         // must be a power of 2
+#define ACCESSORY_OVR_BUFSIZE 16    // must be a power of 2
 
-// Perform one portion of the homing cycle based on the input settings.
-void limits_go_home(uint8_t cycle_mask);
-
-// Check for soft limit violations
-void limits_soft_check(float *target);
-
-void limit_interrupt_handler (axes_signals_t state);
+void flush_override_buffers ();
+void enqueue_feed_ovr (uint8_t cmd);
+uint8_t get_feed_ovr (void);
+void enqueue_accessory_ovr (uint8_t cmd);
+uint8_t get_accessory_ovr (void);
 
 #endif

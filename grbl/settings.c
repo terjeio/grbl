@@ -66,8 +66,8 @@ void settings_restore(uint8_t restore_flag) {
   if (restore_flag & SETTINGS_RESTORE_DEFAULTS) {
 	    settings.pulse_microseconds = DEFAULT_STEP_PULSE_MICROSECONDS;
 	    settings.stepper_idle_lock_time = DEFAULT_STEPPER_IDLE_LOCK_TIME;
-	    settings.step_invert_mask = DEFAULT_STEPPING_INVERT_MASK;
-	    settings.dir_invert_mask = DEFAULT_DIRECTION_INVERT_MASK;
+	    settings.step_invert_mask.value = DEFAULT_STEPPING_INVERT_MASK;
+	    settings.dir_invert_mask.value = DEFAULT_DIRECTION_INVERT_MASK;
 	    settings.status_report_mask.value = DEFAULT_STATUS_REPORT_MASK;
 	    settings.junction_deviation = DEFAULT_JUNCTION_DEVIATION;
 	    settings.arc_tolerance = DEFAULT_ARC_TOLERANCE;
@@ -226,11 +226,11 @@ uint8_t settings_store_global_setting(uint8_t parameter, float value) {
         settings.pulse_microseconds = int_value; break;
       case 1: settings.stepper_idle_lock_time = int_value; break;
       case 2:
-        settings.step_invert_mask = int_value;
+        settings.step_invert_mask.value = int_value;
 //        st_generate_step_dir_invert_masks(); // Regenerate step and direction port invert masks.
         break;
       case 3:
-        settings.dir_invert_mask = int_value;
+        settings.dir_invert_mask.value = int_value;
 //        st_generate_step_dir_invert_masks(); // Regenerate step and direction port invert masks.
         break;
       case 4: // Reset to ensure change. Immediate re-init may cause problems.

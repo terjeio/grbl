@@ -48,27 +48,6 @@
 #define EXEC_ALARM_HOMING_FAIL_PULLOFF  8
 #define EXEC_ALARM_HOMING_FAIL_APPROACH 9
 
-// Override bit maps. Realtime bitflags to control feed, rapid, spindle, and coolant overrides.
-// Spindle/coolant and feed/rapids are separated into two controlling flag variables.
-#define EXEC_FEED_OVR_RESET         bit(0)
-#define EXEC_FEED_OVR_COARSE_PLUS   bit(1)
-#define EXEC_FEED_OVR_COARSE_MINUS  bit(2)
-#define EXEC_FEED_OVR_FINE_PLUS     bit(3)
-#define EXEC_FEED_OVR_FINE_MINUS    bit(4)
-#define EXEC_RAPID_OVR_RESET        bit(5)
-#define EXEC_RAPID_OVR_MEDIUM       bit(6)
-#define EXEC_RAPID_OVR_LOW          bit(7)
-// #define EXEC_RAPID_OVR_EXTRA_LOW   bit(*) // *NOT SUPPORTED*
-
-#define EXEC_SPINDLE_OVR_RESET         bit(0)
-#define EXEC_SPINDLE_OVR_COARSE_PLUS   bit(1)
-#define EXEC_SPINDLE_OVR_COARSE_MINUS  bit(2)
-#define EXEC_SPINDLE_OVR_FINE_PLUS     bit(3)
-#define EXEC_SPINDLE_OVR_FINE_MINUS    bit(4)
-#define EXEC_SPINDLE_OVR_STOP          bit(5)
-#define EXEC_COOLANT_FLOOD_OVR_TOGGLE  bit(6)
-#define EXEC_COOLANT_MIST_OVR_TOGGLE   bit(7)
-
 // Define system state bit map. The state variable primarily tracks the individual functions
 // of Grbl to manage each without overlapping. It is also used as a messaging flag for
 // critical events.
@@ -81,17 +60,6 @@
 #define STATE_JOG           bit(5) // Jogging mode.
 #define STATE_SAFETY_DOOR   bit(6) // Safety door is ajar. Feed holds and de-energizes system.
 #define STATE_SLEEP         bit(7) // Sleep state.
-
-// Define system suspend flags. Used in various ways to manage suspend states and procedures.
-#define SUSPEND_DISABLE           0      // Must be zero.
-#define SUSPEND_HOLD_COMPLETE     bit(0) // Indicates initial feed hold is complete.
-#define SUSPEND_RESTART_RETRACT   bit(1) // Flag to indicate a retract from a restore parking motion.
-#define SUSPEND_RETRACT_COMPLETE  bit(2) // (Safety door only) Indicates retraction and de-energizing is complete.
-#define SUSPEND_INITIATE_RESTORE  bit(3) // (Safety door only) Flag to initiate resume procedures from a cycle start.
-#define SUSPEND_RESTORE_COMPLETE  bit(4) // (Safety door only) Indicates ready to resume normal operation.
-#define SUSPEND_SAFETY_DOOR_AJAR  bit(5) // Tracks safety door state for resuming.
-#define SUSPEND_MOTION_CANCEL     bit(6) // Indicates a canceled resume motion. Currently used by probing routine.
-#define SUSPEND_JOG_CANCEL        bit(7) // Indicates a jog cancel in process and to reset buffers when complete.
 
 // Define step segment generator state flags.
 #define STEP_CONTROL_NORMAL_OP            0  // Must be zero.
@@ -110,28 +78,45 @@ typedef union {
     };
 } controlsignals_t;
 
-// Define spindle stop override control states.
-#define SPINDLE_STOP_OVR_DISABLED       0  // Must be zero.
-#define SPINDLE_STOP_OVR_ENABLED        bit(0)
-#define SPINDLE_STOP_OVR_INITIATE       bit(1)
-#define SPINDLE_STOP_OVR_RESTORE        bit(2)
-#define SPINDLE_STOP_OVR_RESTORE_CYCLE  bit(3)
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t hold_complete    :1, // Indicates initial feed hold is complete.
+                restart_retract  :1, // Flag to indicate a retract from a restore parking motion.
+                retract_complete :1, // (Safety door only) Indicates retraction and de-energizing is complete.
+                initiate_restore :1, // (Safety door only) Flag to initiate resume procedures from a cycle start.
+                restore_complete :1, // (Safety door only) Indicates ready to resume normal operation.
+                safety_door_ajar :1, // Tracks safety door state for resuming.
+                motion_cancel    :1, // Indicates a canceled resume motion. Currently used by probing routine.
+                jog_cancel       :1; // Indicates a jog cancel in process and to reset buffers when complete.
+    };
+} suspend_t;
 
+// Define spindle stop override control states.
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t enabled       :1,
+                initiate      :1,
+                restore       :1,
+                restore_cycle :1;
+    };
+} spindle_stop_t;
 
 // Define global system variables
 typedef struct {
   uint8_t state;               // Tracks the current system state of Grbl.
   uint8_t abort;               // System abort flag. Forces exit back to main loop for reset.
   bool exit;				   // System exit flag. Used in combination with abort to terminate main loop.
-  uint8_t suspend;             // System suspend bitflag variable that manages holds, cancels, and safety door.
-  uint8_t soft_limit;          // Tracks soft limit errors for the state machine. (boolean)
-  uint8_t step_control;        // Governs the step segment generator depending on system state.
+  suspend_t suspend;           // System suspend bitflag variable that manages holds, cancels, and safety door.
+  bool soft_limit;             // Tracks soft limit errors for the state machine. (boolean)
+  uint8_t step_control;        // Governs the step segment generator dependi on system state.
   uint8_t probe_succeeded;     // Tracks if last probing cycle was successful.
-  uint8_t homing_axis_lock;    // Locks axes when limits engage. Used as an axis motion mask in the stepper ISR.
+  axes_signals_t homing_axis_lock;    // Locks axes when limits engage. Used as an axis motion mask in the stepper ISR.
   uint8_t f_override;          // Feed rate override value in percent
   uint8_t r_override;          // Rapids override value in percent
   uint8_t spindle_speed_ovr;   // Spindle speed value in percent
-  uint8_t spindle_stop_ovr;    // Tracks spindle stop override states
+  spindle_stop_t spindle_stop_ovr;    // Tracks spindle stop override states
   uint8_t report_ovr_counter;  // Tracks when to add override data to status reports.
   uint8_t report_wco_counter;  // Tracks when to add work coordinate offset data to status reports.
   #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
@@ -150,8 +135,6 @@ extern int32_t sys_probe_position[N_AXIS]; // Last probe position in machine coo
 extern volatile uint8_t sys_probe_state;   // Probing state value.  Used to coordinate the probing cycle with stepper ISR.
 extern volatile uint8_t sys_rt_exec_state;   // Global realtime executor bitflag variable for state management. See EXEC bitmasks.
 extern volatile uint8_t sys_rt_exec_alarm;   // Global realtime executor bitflag variable for setting various alarms.
-extern volatile uint8_t sys_rt_exec_motion_override; // Global realtime executor bitflag variable for motion-based overrides.
-extern volatile uint8_t sys_rt_exec_accessory_override; // Global realtime executor bitflag variable for spindle/coolant overrides.
 
 #ifdef DEBUG
   #define EXEC_DEBUG_REPORT  bit(0)
@@ -191,12 +174,9 @@ bool system_check_travel_limits(float *target);
 // Special handlers for setting and clearing Grbl's real-time execution flags.
 #define system_set_exec_state_flag(mask) hal.set_bits_atomic(&sys_rt_exec_state, (mask))
 #define system_clear_exec_state_flag(mask) hal.clear_bits_atomic(&sys_rt_exec_state, (mask))
+#define system_clear_exec_states() hal.clear_bits_atomic(&sys_rt_exec_state, 0xFF)
 #define system_set_exec_alarm(code) hal.set_bits_atomic(&sys_rt_exec_alarm, (code)) // clear first?
 #define system_clear_exec_alarm() hal.clear_bits_atomic(&sys_rt_exec_alarm, 0xFF)
-#define system_set_exec_motion_override_flag(mask) hal.set_bits_atomic(&sys_rt_exec_motion_override, (mask))
-#define system_set_exec_accessory_override_flag(mask) hal.set_bits_atomic(&sys_rt_exec_accessory_override, (mask))
-#define system_clear_exec_motion_overrides() hal.clear_bits_atomic(&sys_rt_exec_motion_override, 0xFF)
-#define system_clear_exec_accessory_overrides()  hal.clear_bits_atomic(&sys_rt_exec_accessory_override, 0xFF)
 
 void control_interrupt_handler (controlsignals_t signals);
 
