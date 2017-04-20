@@ -26,8 +26,8 @@
 void probe_state_monitor()
 {
     if (probe_get_state()) {
-      sys_probe_state = PROBE_OFF;
-      memcpy(sys_probe_position, sys_position, sizeof(sys_position));
-      bit_true(sys_rt_exec_state, EXEC_MOTION_CANCEL);
+        sys_probe_state = PROBE_OFF;
+        memcpy(sys_probe_position, sys_position, sizeof(sys_position));
+        bit_true(sys_rt_exec_state, EXEC_MOTION_CANCEL);
     }
 }

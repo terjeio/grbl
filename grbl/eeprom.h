@@ -21,9 +21,9 @@
 #ifndef eeprom_h
 #define eeprom_h
 
-#define eeprom_get_char(a) hal.eeprom_get_char(a)
-#define eeprom_put_char(a, v) hal.eeprom_put_char(a, v)
-#define memcpy_to_eeprom_with_checksum(d, s, l) hal.memcpy_to_eeprom_with_checksum(d, s, l)
-#define memcpy_from_eeprom_with_checksum(d, s, l) hal.memcpy_from_eeprom_with_checksum(d, s, l)
+#define eeprom_get_char(a) hal.eeprom.get_char(a)
+#define eeprom_put_char(a, v) hal.eeprom.put_char(a, v)
+#define memcpy_to_eeprom_with_checksum(d, s, l) hal.eeprom.memcpy_to_with_checksum(d, s, l)
+#define memcpy_from_eeprom_with_checksum(d, s, l) hal.eeprom.memcpy_from_with_checksum(d, s, l)
 
 #endif

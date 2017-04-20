@@ -21,17 +21,25 @@
 #ifndef coolant_control_h
 #define coolant_control_h
 
-#define COOLANT_NO_SYNC     false
-#define COOLANT_FORCE_SYNC  true
+//#define COOLANT_NO_SYNC     false
+//#define COOLANT_FORCE_SYNC  true
 
 #define COOLANT_STATE_DISABLE   0  // Must be zero
-#define COOLANT_STATE_FLOOD     bit(0)
-#define COOLANT_STATE_MIST      bit(1)
+
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t flood :1,
+                mist  :1;
+    };
+} coolant_state_t;
 
 #define coolant_get_state() hal.coolant_get_state()
 
 // Immediately disables coolant pins.
-void coolant_stop();
+// Directly called by coolant_init(), coolant_set_state(), and mc_reset(), which can be at
+// an interrupt-level. No report flag set, but only called by routines that don't need it.
+#define coolant_stop() hal.coolant_set_state(COOLANT_STATE_DISABLE)
 
 // Sets the coolant pins according to state specified.
 void coolant_set_state(uint8_t mode);

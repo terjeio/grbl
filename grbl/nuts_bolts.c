@@ -32,74 +32,72 @@
 // Scientific notation is officially not supported by g-code, and the 'E' character may
 // be a g-code word on some CNC systems. So, 'E' notation will not be recognized.
 // NOTE: Thanks to Radu-Eosif Mihailescu for identifying the issues with using strtod().
-bool read_float(char *line, uint8_t *char_counter, float *float_ptr)
+bool read_float (char *line, uint8_t *char_counter, float *float_ptr)
 {
-  char *ptr = line + *char_counter;
-  unsigned char c;
-  bool isnegative;
+    char *ptr = line + *char_counter;
+    unsigned char c;
+    uint32_t intval = 0;
+    int8_t exp = 0;
+    uint8_t ndigit = 0;
+    bool isnegative, isdecimal = false;
 
-  // Grab first character and increment pointer. No spaces assumed in line.
-  c = *ptr++;
-
-  // Capture initial positive/minus character
-  if ((isnegative = (c == '-')) || c == '+')
+    // Grab first character and increment pointer. No spaces assumed in line.
     c = *ptr++;
 
-  // Extract number into fast integer. Track decimal in terms of exponent value.
-  uint32_t intval = 0;
-  int8_t exp = 0;
-  uint8_t ndigit = 0;
-  bool isdecimal = false;
-  while(1) {
-    c -= '0';
-    if (c <= 9) {
-      ndigit++;
-      if (ndigit <= MAX_INT_DIGITS) {
-        if (isdecimal) { exp--; }
-        intval = (((intval << 2) + intval) << 1) + c; // intval*10 + c
-      } else {
-        if (!(isdecimal)) { exp++; }  // Drop overflow digits
-      }
-    } else if (c == (('.'-'0') & 0xff)  &&  !(isdecimal)) {
-      isdecimal = true;
-    } else {
-      break;
+    // Capture initial positive/minus character
+    if ((isnegative = (c == '-')) || c == '+')
+        c = *ptr++;
+
+    // Extract number into fast integer. Track decimal in terms of exponent value.
+    while(true) {
+        c -= '0';
+        if (c <= 9) {
+            ndigit++;
+            if (ndigit <= MAX_INT_DIGITS) {
+                if (isdecimal)
+                    exp--;
+                intval = (((intval << 2) + intval) << 1) + c; // intval*10 + c
+            } else if (!isdecimal)
+                exp++;  // Drop overflow digits
+        } else if (c == (('.'-'0') & 0xff) && !isdecimal)
+            isdecimal = true;
+         else
+            break;
+
+        c = *ptr++;
     }
-    c = *ptr++;
-  }
 
-  // Return if no digits have been read.
-  if (!ndigit) { return(false); };
+    // Return if no digits have been read.
+    if (!ndigit)
+        return(false);
 
-  // Convert integer into floating point.
-  float fval = (float)intval;
+    // Convert integer into floating point.
+    float fval = (float)intval;
 
-  // Apply decimal. Should perform no more than two floating point multiplications for the
-  // expected range of E0 to E-4.
-  if (fval != 0.0f) {
-    while (exp <= -2) {
-      fval *= 0.01f;
-      exp += 2;
+    // Apply decimal. Should perform no more than two floating point multiplications for the
+    // expected range of E0 to E-4.
+    if (fval != 0.0f) {
+        while (exp <= -2) {
+            fval *= 0.01f;
+            exp += 2;
+        }
+        if (exp < 0)
+            fval *= 0.1f;
+        else if (exp > 0) do {
+            fval *= 10.0f;
+        } while (--exp > 0);
     }
-    if (exp < 0) {
-      fval *= 0.1f;
-    } else if (exp > 0) {
-      do {
-        fval *= 10.0f;
-      } while (--exp > 0);
-    }
-  }
 
-  // Assign floating point value with correct sign.
-  *float_ptr = isnegative ? - fval : fval;
-  *char_counter = ptr - line - 1; // Set char_counter to next statement
+    // Assign floating point value with correct sign.
+    *float_ptr = isnegative ? - fval : fval;
+    *char_counter = ptr - line - 1; // Set char_counter to next statement
 
-  return(true);
+    return true;
 }
 
 
 // Non-blocking delay function used for general operation and suspend features.
-void delay_sec(float seconds, uint8_t mode)
+void delay_sec (float seconds, uint8_t mode)
 {
     uint16_t i = (uint16_t)ceilf((1000/DWELL_TIME_STEP) * seconds);
     while (!sys.abort && --i) {
@@ -116,7 +114,7 @@ void delay_sec(float seconds, uint8_t mode)
 }
 
 
-float convert_delta_vector_to_unit_vector(float *vector)
+float convert_delta_vector_to_unit_vector (float *vector)
 {
     uint32_t idx = N_AXIS;
     float magnitude = 0.0f, inv_magnitude;
@@ -138,7 +136,7 @@ float convert_delta_vector_to_unit_vector(float *vector)
 }
 
 
-float limit_value_by_axis_maximum(float *max_value, float *unit_vec)
+float limit_value_by_axis_maximum (float *max_value, float *unit_vec)
 {
     uint32_t idx = N_AXIS;
     float limit_value = SOME_LARGE_VALUE;

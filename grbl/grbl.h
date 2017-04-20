@@ -43,6 +43,7 @@
 #include "cpu_map.h"
 #include "coolant_control.h"
 #include "eeprom.h"
+#include "eeprom_emulate.h"
 #include "gcode.h"
 #include "limits.h"
 #include "planner.h"

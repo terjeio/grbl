@@ -22,22 +22,24 @@
 #ifndef spindle_control_h
 #define spindle_control_h
 
-#define SPINDLE_NO_SYNC false
-#define SPINDLE_FORCE_SYNC true
+//#define SPINDLE_NO_SYNC false
+//#define SPINDLE_FORCE_SYNC true
 
-#define SPINDLE_STATE_DISABLE  0  // Must be zero.
-#define SPINDLE_STATE_CW       bit(0)
-#define SPINDLE_STATE_CCW      bit(1)
+typedef enum {
+    Spindle_Off = 0,
+    Spindle_CW = 1,
+    Spindle_CCW = 2
+} spindle_state_t;
 
 // this is defined in cpu_map.h which no longer used
-#define SPINDLE_PWM_OFF_VALUE     0
+#define SPINDLE_PWM_OFF_VALUE 0
 
 #define spindle_get_state() hal.spindle_get_state()
 
 // Disables the spindle and sets PWM output to zero when PWM variable spindle speed is enabled.
 // Called by various main program and ISR routines. Keep routine small, fast, and efficient.
 // Called by spindle_init(), spindle_set_speed(), spindle_set_state(), and mc_reset().
-#define spindle_stop() hal.spindle_set_state(0, 0.0f)
+#define spindle_stop() hal.spindle_set_status(0, 0.0f)
 
 #define spindle_set_speed(s) hal.spindle_set_speed(s)
 #define spindle_compute_pwm_value(s) hal.spindle_compute_pwm_value(s)

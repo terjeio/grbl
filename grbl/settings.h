@@ -23,10 +23,11 @@
 #define settings_h
 
 #include "grbl.h"
+#include "system.h"
 
 // Version of the EEPROM data. Will be used to migrate existing data from older versions of Grbl
 // when firmware is upgraded. Always stored in byte 0 of eeprom
-#define SETTINGS_VERSION 10  // NOTE: Check settings_reset() when moving to next version.
+#define SETTINGS_VERSION 11  // NOTE: Check settings_reset() when moving to next version.
 
 // Define settings restore bitflags.
 #define SETTINGS_RESTORE_DEFAULTS bit(0)
@@ -38,7 +39,7 @@
 #endif
 
 // Define EEPROM memory address location values for Grbl settings and parameters
-// NOTE: The Atmega328p has 1KB EEPROM. The upper half is reserved for parameters and
+// NOTE: 1KB EEPROM is the minimum required. The upper half is reserved for parameters and
 // the startup script. The lower half contains the global settings and space for future
 // developments.
 #define EEPROM_ADDR_GLOBAL         1U
@@ -54,23 +55,58 @@
 #define SETTING_INDEX_G30    N_COORDINATE_SYSTEM+1  // Home position 2
 // #define SETTING_INDEX_G92    N_COORDINATE_SYSTEM+2  // Coordinate offset (G92.2,G92.3 not supported)
 
-// Define Grbl axis settings numbering scheme. Starts at START_VAL, every INCREMENT, over N_SETTINGS.
+// Define Grbl axis settings numbering scheme. Starts at Setting_AxisSettingsBase, every INCREMENT, over N_SETTINGS.
 #define AXIS_N_SETTINGS          4
-#define AXIS_SETTINGS_START_VAL  100 // NOTE: Reserving settings values >= 100 for axis settings. Up to 255.
 #define AXIS_SETTINGS_INCREMENT  10  // Must be greater than the number of axis settings
 
+typedef enum {
+    Setting_PulseMicroseconds = 0,
+    Setting_StepperIdleLockTime = 1,
+    Setting_StepInvertMask = 2,
+    Setting_DirInvertMask = 3,
+    Setting_InvertStepperEnable = 4,
+    Setting_InvertLimitPins = 5,
+    Setting_InvertProbePin = 6,
+    Setting_StatusReportMask = 10,
+    Setting_JunctionDeviation = 11,
+    Setting_ArcTolerance = 12,
+    Setting_ReportInches = 13,
+    Setting_SoftLimitsEnable = 20,
+    Setting_HardLimitsEnable = 21,
+    Setting_HomingEnable = 22,
+    Setting_HomingDirMask = 23,
+    Setting_HomingFeedRate = 24,
+    Setting_HomingSeekRate = 25,
+    Setting_HomingDebounceDelay = 26,
+    Setting_HomingPulloff = 27,
+    Setting_RpmMax = 30,
+    Setting_RpmMin = 31,
+    Setting_LaserMode = 32,
+    Setting_AxisSettingsBase = 100 // NOTE: Reserving settings values >= 100 for axis settings. Up to 255.
+} setting_type_t;
+
+typedef enum {
+    AxisSetting_StepsPerMM = 0,
+    AxisSetting_MaxRate = 1,
+    AxisSetting_Acceleration = 2,
+    AxisSetting_MaxTravel = 3
+} axis_setting_type_t;
 
 typedef union {
-    uint8_t value;
+    uint16_t value;
     struct {
-        uint8_t report_inches     :1,
+        uint16_t report_inches     :1,
                  laser_mode        :1,
                  invert_st_enable  :1,
                  hard_limit_enable :1,
                  homing_enable     :1,
                  soft_limit_enable :1,
                  invert_limit_pins :1,
-                 invert_probe_pin  :1;
+                 invert_probe_pin  :1,
+                 invert_flood_pin  :1,
+                 invert_mist_pin   :1,
+                 invert_spindle_enable :1,
+                 spindle_disable_with_zero_speed :1;
     };
 } settingflags_t;
 
@@ -89,26 +125,24 @@ typedef struct {
   float max_rate[N_AXIS];
   float acceleration[N_AXIS];
   float max_travel[N_AXIS];
-
-  // Remaining Grbl settings
-  uint8_t pulse_microseconds;
-  axes_signals_t step_invert_mask;
-  axes_signals_t dir_invert_mask;
-  uint8_t stepper_idle_lock_time; // If max value 255, steppers do not disable.
-  reportmask_t status_report_mask; // Mask to indicate desired report data.
   float junction_deviation;
   float arc_tolerance;
-
+  float homing_feed_rate;
+  float homing_seek_rate;
+  float homing_pulloff;
   float rpm_max;
   float rpm_min;
 
+  uint8_t stepper_idle_lock_time; // If max value 255, steppers do not disable.
+  axes_signals_t step_invert_mask;
+  axes_signals_t dir_invert_mask;
+  uint8_t homing_dir_mask;
+  uint16_t homing_debounce_delay;
+  uint8_t pulse_microseconds;
+  uint8_t pulse_delay_microseconds;
+  reportmask_t status_report_mask; // Mask to indicate desired report data.
   settingflags_t flags;  // Contains default boolean settings
 
-  uint8_t homing_dir_mask;
-  float homing_feed_rate;
-  float homing_seek_rate;
-  uint16_t homing_debounce_delay;
-  float homing_pulloff;
 } settings_t;
 
 extern settings_t settings;
@@ -120,24 +154,24 @@ void settings_init();
 void settings_restore(uint8_t restore_flag);
 
 // A helper method to set new settings from command line
-uint8_t settings_store_global_setting(uint8_t parameter, float value);
+status_code_t settings_store_global_setting(uint8_t parameter, float value);
 
 // Stores the protocol line variable as a startup line in EEPROM
 void settings_store_startup_line(uint8_t n, char *line);
 
 // Reads an EEPROM startup line to the protocol line variable
-uint8_t settings_read_startup_line(uint8_t n, char *line);
+bool settings_read_startup_line(uint8_t n, char *line);
 
 // Stores build info user-defined string
 void settings_store_build_info(char *line);
 
 // Reads build info user-defined string
-uint8_t settings_read_build_info(char *line);
+bool settings_read_build_info(char *line);
 
 // Writes selected coordinate data to EEPROM
 void settings_write_coord_data(uint8_t coord_select, float *coord_data);
 
 // Reads selected coordinate data from EEPROM
-uint8_t settings_read_coord_data(uint8_t coord_select, float *coord_data);
+bool settings_read_coord_data(uint8_t coord_select, float *coord_data);
 
 #endif

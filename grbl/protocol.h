@@ -37,7 +37,7 @@
 bool protocol_main_loop();
 
 // Checks and executes a realtime command at various stop points in main program
-bool  protocol_execute_realtime();
+bool protocol_execute_realtime();
 void protocol_exec_rt_system();
 
 // Executes the auto cycle feature, if enabled.

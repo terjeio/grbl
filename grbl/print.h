@@ -29,7 +29,7 @@ void printString(const char *s);
 #define printString(s) hal.serial_write_string(s)
 #define printPgmString(s) hal.serial_write_string(s)
 
-void printInteger(long n);
+void printInteger(int32_t n);
 
 void print_uint32_base10(uint32_t n);
 

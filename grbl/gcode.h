@@ -22,6 +22,7 @@
 #ifndef gcode_h
 #define gcode_h
 
+#include "system.h"
 
 // Define modal group internal numbers for checking multiple command violations and tracking the
 // type of command that is called in the block. A modal group is a group of g-code commands that are
@@ -204,15 +205,16 @@ typedef struct {
 
 typedef struct {
   float f;         // Feed
-  float ijk[N_AXIS]; // I,J,K Axis arc offsets
-  uint8_t l;       // G10 or canned cycles parameters
-  int32_t n;       // Line number
+  float ijk[3];    // I,J,K Axis arc offsets
   float p;         // G10 or dwell parameters
   float q;         // User defined M-code parameter (G82 peck drilling, not supported)
   float r;         // Arc radius
   float s;         // Spindle speed
-  uint8_t t;       // Tool selection
   float xyz[N_AXIS]; // X,Y,Z Translational axes
+  float coord_data[N_AXIS]; // Coordinate data
+  int32_t n;       // Line number
+  uint8_t t;       // Tool selection
+  uint8_t l;       // G10 or canned cycles parameters
 } gc_values_t;
 
 
@@ -221,9 +223,6 @@ typedef struct {
 
   float spindle_speed;          // RPM
   float feed_rate;              // Millimeters/min
-  uint8_t tool;                 // Tracks tool number. NOT USED.
-  int32_t line_number;          // Last line number sent
-
   float position[N_AXIS];       // Where the interpreter considers the tool to be at this point in the code
 
   float coord_system[N_AXIS];    // Current work coordinate system (G54+). Stores offset from absolute machine
@@ -231,7 +230,10 @@ typedef struct {
   float coord_offset[N_AXIS];    // Retains the G92 coordinate offset (work coordinates) relative to
                                  // machine zero in mm. Non-persistent. Cleared upon reset and boot.
   float tool_length_offset;      // Tracks tool length offset value when enabled.
+  int32_t line_number;          // Last line number sent
+  uint8_t tool;                 // Tracks tool number. NOT USED.
 } parser_state_t;
+
 extern parser_state_t gc_state;
 
 
@@ -248,7 +250,7 @@ typedef struct {
 void gc_init();
 
 // Execute one block of rs275/ngc/g-code
-uint8_t gc_execute_line(char *line);
+status_code_t gc_execute_line(char *line);
 
 // Set g-code parser position. Input in steps.
 void gc_sync_position();

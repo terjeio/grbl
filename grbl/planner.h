@@ -32,10 +32,6 @@
   #endif
 #endif
 
-// Returned status message from planner.
-#define PLAN_OK true
-#define PLAN_EMPTY_BLOCK false
-
 // Define planner data condition flags. Used to denote running conditions of a block.
 #define PL_COND_FLAG_RAPID_MOTION      bit(0)
 #define PL_COND_FLAG_SYSTEM_MOTION     bit(1) // Single motion. Circumvents planner state. Used by home/park.
@@ -45,9 +41,10 @@
 #define PL_COND_FLAG_SPINDLE_CCW       bit(5)
 #define PL_COND_FLAG_COOLANT_FLOOD     bit(6)
 #define PL_COND_FLAG_COOLANT_MIST      bit(7)
-#define PL_COND_MOTION_MASK    (PL_COND_FLAG_RAPID_MOTION|PL_COND_FLAG_SYSTEM_MOTION|PL_COND_FLAG_NO_FEED_OVERRIDE)
-#define PL_COND_ACCESSORY_MASK (PL_COND_FLAG_SPINDLE_CW|PL_COND_FLAG_SPINDLE_CCW|PL_COND_FLAG_COOLANT_FLOOD|PL_COND_FLAG_COOLANT_MIST)
-
+//#define PL_COND_MOTION_MASK    (PL_COND_FLAG_RAPID_MOTION|PL_COND_FLAG_SYSTEM_MOTION|PL_COND_FLAG_NO_FEED_OVERRIDE)
+//#define PL_COND_ACCESSORY_MASK (PL_COND_FLAG_SPINDLE_CW|PL_COND_FLAG_SPINDLE_CCW|PL_COND_FLAG_COOLANT_FLOOD|PL_COND_FLAG_COOLANT_MIST)
+#define PL_COND_FLAGS_COOLANT (PL_COND_FLAG_COOLANT_FLOOD|PL_COND_FLAG_COOLANT_MIST)
+#define PL_COND_FLAGS_SPINDLE (PL_COND_FLAG_SPINDLE_CW|PL_COND_FLAG_SPINDLE_CCW)
 
 // This struct stores a linear movement of a g-code block motion with its critical "nominal" values
 // are as specified in the source g-code.
@@ -103,7 +100,7 @@ void plan_reset(); // Reset all
 // Add a new linear movement to the buffer. target[N_AXIS] is the signed, absolute target position
 // in millimeters. Feed rate specifies the speed of the motion. If feed rate is inverted, the feed
 // rate is taken to mean "frequency" and would complete the operation in 1/feed_rate minutes.
-uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data);
+bool plan_buffer_line(float *target, plan_line_data_t *pl_data);
 
 // Called when the current block is no longer needed. Discards the block and makes the memory
 // availible for new blocks.

@@ -9,7 +9,7 @@ HAL = Hardware Abstraction Layer
 
 The controller is written in highly optimized C utilizing features of the ARM-chips to achieve precise timing and asynchronous operation. It is able to maintain up to 30kHz of stable, jitter free control pulses.
 
-**WARNING:** I have started to introduce bitfield unions instead of using \#defines and macros, even for axis bits. This is potentially a big problem if bit-order and alignment does not match the implementation of the C-compiler I am using \(CCS v6 IDE - TI v5.2.6 compiler\). I am doing this as a coding execercise and I am well aware of the risks involved...
+**WARNING:** I have started to introduce bitfield unions instead of using \#defines and macros, even for axis bits. This is potentially a big problem if bit-order and alignment does not match the implementation of the C-compiler I am using \(CCS v6 IDE - TI v5.2.6 compiler\). I am doing this as a coding excercise and I am well aware of the risks involved...
 
 It accepts standards-compliant g-code and has been tested with the output of several CAM tools with no problems. Arcs, circles and helical motion are fully supported, as well as, all other primary g-code commands. Macro functions, variables, and most canned cycles are not supported, but we think GUIs can do a much better job at translating them into straight g-code anyhow.
 

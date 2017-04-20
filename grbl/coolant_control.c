@@ -20,14 +20,6 @@
 
 #include "grbl.h"
 
-// Directly called by coolant_init(), coolant_set_state(), and mc_reset(), which can be at
-// an interrupt-level. No report flag set, but only called by routines that don't need it.
-void coolant_stop()
-{
-	hal.coolant_set_state(COOLANT_STATE_DISABLE);
-}
-
-
 // Main program only. Immediately sets flood coolant running state and also mist coolant,
 // if enabled. Also sets a flag to report an update to a coolant state.
 // Called by coolant toggle override, parking restore, parking retract, sleep mode, g-code

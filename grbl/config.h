@@ -305,6 +305,27 @@
 // step smoothing. See stepper.c for more details on the AMASS system works.
 #define ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING  // Default enabled. Comment to disable.
 
+// Define Adaptive Multi-Axis Step-Smoothing(AMASS) levels and cutoff frequencies. The highest level
+// frequency bin starts at 0Hz and ends at its cutoff frequency. The next lower level frequency bin
+// starts at the next higher cutoff frequency, and so on. The cutoff frequencies for each level must
+// be considered carefully against how much it over-drives the stepper ISR, the accuracy of the 16-bit
+// timer, and the CPU overhead. Level 0 (no AMASS, normal operation) frequency bin starts at the
+// Level 1 cutoff frequency and up to as fast as the CPU allows (over 30kHz in limited testing).
+// NOTE: AMASS cutoff frequency multiplied by ISR overdrive factor must not exceed maximum step frequency.
+// NOTE: Current settings are set to overdrive the ISR to no more than 16kHz, balancing CPU overhead
+// and timer accuracy.  Do not alter these settings unless you know what you are doing.
+#ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+    #define MAX_AMASS_LEVEL 3
+    // AMASS_LEVEL0: Normal operation. No AMASS. No upper cutoff frequency. Starts at LEVEL1 cutoff frequency.
+    #define AMASS_LEVEL1 (F_STEPTIMER/8000) // Over-drives ISR (x2). Defined as F_STEPTIMER/(Cutoff frequency in Hz)
+    #define AMASS_LEVEL2 (F_STEPTIMER/4000) // Over-drives ISR (x4)
+    #define AMASS_LEVEL3 (F_STEPTIMER/2000) // Over-drives ISR (x8)
+
+  #if MAX_AMASS_LEVEL <= 0
+    error "AMASS must have 1 or more levels to operate correctly."
+  #endif
+#endif
+
 // Sets the maximum step rate allowed to be written as a Grbl setting. This option enables an error
 // check in the settings module to prevent settings values that will exceed this limitation. The maximum
 // step rate is strictly limited by the CPU speed and will change if something other than an AVR running
@@ -587,6 +608,14 @@
 // be reenabled by disabling the spindle stop override, if needed. This is purely a safety feature
 // to ensure the laser doesn't inadvertently remain powered while at a stop and cause a fire.
 #define DISABLE_LASER_DURING_HOLD // Default enabled. Comment to disable.
+
+// Max length of gcode lines (blocks) stored in EEPROM, do not set > 80 unless EEPROM space is reallocated
+#define MAX_STORED_LINE_LENGTH 80
+
+// Enable EEPROM emulation/buffering in RAM (allocated from heap)
+// Can be used for MCUs with no EEPROM or as buffer in order to avoid writing to EEPROM when not in idle state.
+// The buffer will be written to EEPROM when in idle state.
+#define EMULATE_EEPROM
 
 /* ---------------------------------------------------------------------------------------
    OEM Single File Configuration Option

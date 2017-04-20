@@ -1,5 +1,5 @@
 /*
-  jog.h - Jogging methods
+  jog.c - Jogging methods
   Part of Grbl
 
   Copyright (c) 2016 Sungeun K. Jeon for Gnea Research LLC
@@ -22,29 +22,26 @@
 
 
 // Sets up valid jog motion received from g-code parser, checks for soft-limits, and executes the jog.
-uint8_t jog_execute(plan_line_data_t *pl_data, parser_block_t *gc_block)
+status_code_t jog_execute (plan_line_data_t *pl_data, parser_block_t *gc_block)
 {
-  // Initialize planner data struct for jogging motions.
-  // NOTE: Spindle and coolant are allowed to fully function with overrides during a jog.
-  pl_data->feed_rate = gc_block->values.f;
-  pl_data->condition |= PL_COND_FLAG_NO_FEED_OVERRIDE;
-  #ifdef USE_LINE_NUMBERS
+    // Initialize planner data struct for jogging motions.
+    // NOTE: Spindle and coolant are allowed to fully function with overrides during a jog.
+    pl_data->feed_rate = gc_block->values.f;
+    pl_data->condition |= PL_COND_FLAG_NO_FEED_OVERRIDE;
+    #ifdef USE_LINE_NUMBERS
     pl_data->line_number = gc_block->values.n;
-  #endif
+    #endif
 
-  if (settings.flags.soft_limit_enable) {
-    if (system_check_travel_limits(gc_block->values.xyz)) { return(STATUS_TRAVEL_EXCEEDED); }
-  }
+    if (settings.flags.soft_limit_enable && system_check_travel_limits(gc_block->values.xyz))
+        return Status_TravelExceeded;
 
-  // Valid jog command. Plan, set state, and execute.
-  mc_line(gc_block->values.xyz,pl_data);
-  if (sys.state == STATE_IDLE) {
-    if (plan_get_current_block() != NULL) { // Check if there is a block to execute.
-      sys.state = STATE_JOG;
-      st_prep_buffer();
-      st_wake_up();  // NOTE: Manual start. No state machine required.
+    // Valid jog command. Plan, set state, and execute.
+    mc_line(gc_block->values.xyz, pl_data);
+    if (sys.state == STATE_IDLE && plan_get_current_block() != NULL) { // Check if there is a block to execute.
+        sys.state = STATE_JOG;
+        st_prep_buffer();
+        st_wake_up();  // NOTE: Manual start. No state machine required.
     }
-  }
 
-  return(STATUS_OK);
+    return Status_OK;
 }

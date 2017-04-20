@@ -46,18 +46,18 @@ static unsigned char buf[10];
 
 
 // Prints an uint8 variable with base and number of desired digits.
-void print_unsigned_int8(uint8_t n, uint8_t base, uint8_t digits)
+void print_unsigned_int8 (uint8_t n, uint8_t base, uint8_t digits)
 {
 
-  uint8_t i = 0;
+    uint8_t i = 0;
 
-  for (; i < digits; i++) {
-      buf[i] = n % base ;
-      n /= base;
-  }
+    for (; i < digits; i++) {
+        buf[i] = n % base ;
+        n /= base;
+    }
 
-  while(i)
-      serial_write('0' + buf[--i]);
+    while(i)
+        serial_write('0' + buf[--i]);
 
  // for (; i > 0; i--)
  //     serial_write('0' + buf[i - 1]);
@@ -65,42 +65,39 @@ void print_unsigned_int8(uint8_t n, uint8_t base, uint8_t digits)
 
 
 // Prints an uint8 variable in base 10.
-void print_uint8_base10(uint8_t n)
+void print_uint8_base10 (uint8_t n)
 {
-  print_unsigned_int8(n, 10, n < 10 ? 1 : (n < 100 ? 2 : 3));
+    print_unsigned_int8(n, 10, n < 10 ? 1 : (n < 100 ? 2 : 3));
 }
 
 
-void print_uint32_base10(uint32_t n)
+void print_uint32_base10 (uint32_t n)
 {
-  if (n == 0) {
-    serial_write('0');
-    return;
-  }
+    if (n == 0) {
+        serial_write('0');
+        return;
+    }
 
-  uint8_t i = 0;
+    uint8_t i = 0;
 
-  while (n > 0) {
-    buf[i++] = n % 10;
-    n /= 10;
-  }
+    while (n > 0) {
+        buf[i++] = n % 10;
+        n /= 10;
+    }
 
-  while(i)
-      serial_write('0' + buf[--i]);
+    while(i)
+        serial_write('0' + buf[--i]);
 
-//  for (; i > 0; i--)
-//	  serial_write('0' + buf[i-1]);
 }
 
 
-void printInteger(long n)
+void printInteger (int32_t n)
 {
-  if (n < 0) {
-	  serial_write('-');
-    print_uint32_base10(-n);
-  } else {
-    print_uint32_base10(n);
-  }
+    if (n < 0) {
+        serial_write('-');
+        print_uint32_base10(-n);
+    } else
+        print_uint32_base10(n);
 }
 
 
@@ -109,44 +106,47 @@ void printInteger(long n)
 // may be set by the user. The integer is then efficiently converted to a string.
 // NOTE: AVR '%' and '/' integer operations are very efficient. Bitshifting speed-up
 // techniques are actually just slightly slower. Found this out the hard way.
-void printFloat(float n, uint8_t decimal_places)
+void printFloat (float n, uint8_t decimal_places)
 {
-  if (n < 0.0f) {
-      serial_write('-');
-      n = -n;
-  }
+    if (n < 0.0f) {
+        serial_write('-');
+        n = -n;
+    }
 
-  uint8_t decimals = decimal_places;
-  while (decimals >= 2) { // Quickly convert values expected to be E0 to E-4.
-    n *= 100.0f;
-    decimals -= 2;
-  }
-  if (decimals) { n *= 10.0f; }
-  n += 0.5f; // Add rounding factor. Ensures carryover through entire value.
+    uint8_t decimals = decimal_places;
+    while (decimals >= 2) { // Quickly convert values expected to be E0 to E-4.
+        n *= 100.0f;
+        decimals -= 2;
+    }
 
-  // Generate digits backwards and store in string.
-  uint8_t i = 0;
-  uint32_t a = (long)n;
-  buf[decimal_places] = '.'; // Place decimal point, even if decimal places are zero.
-  while(a > 0) {
-    if (i == decimal_places) { i++; } // Skip decimal point location
-    buf[i++] = (a % 10) + '0'; // Get digit
-    a /= 10;
-  }
-  while (i < decimal_places) {
-     buf[i++] = '0'; // Fill in zeros to decimal point for (n < 1)
-  }
-  if (i == decimal_places) { // Fill in leading zero, if needed.
-    i++;
-    buf[i++] = '0';
-  }
+    if (decimals)
+        n *= 10.0f;
 
-  while(i)
-      serial_write(buf[--i]);
+    n += 0.5f; // Add rounding factor. Ensures carryover through entire value.
 
-  // Print the generated string.
-//  for (; i > 0; i--)
-//	  serial_write(buf[i-1]);
+    // Generate digits backwards and store in string.
+    uint8_t i = 0;
+    uint32_t a = (long)n; // TODO: check for wrong cast?
+    buf[decimal_places] = '.'; // Place decimal point, even if decimal places are zero.
+
+    while(a > 0) {
+        if (i == decimal_places)
+            i++; // Skip decimal point location
+        buf[i++] = (a % 10) + '0'; // Get digit
+        a /= 10;
+    }
+
+    while (i < decimal_places) {
+        buf[i++] = '0'; // Fill in zeros to decimal point for (n < 1)
+    }
+
+    if (i == decimal_places) { // Fill in leading zero, if needed.
+        i++;
+        buf[i++] = '0';
+    }
+
+    while(i)
+        serial_write(buf[--i]);
 }
 
 
@@ -155,26 +155,27 @@ void printFloat(float n, uint8_t decimal_places)
 //  - CoordValue: Handles all position or coordinate values in inches or mm reporting.
 //  - RateValue: Handles feed rate and current velocity in inches or mm reporting.
 //  - SettingValue: Handles all floating point settings values (always in mm.)
-void printFloat_CoordValue(float n) {
-  if (settings.flags.report_inches) {
-    printFloat(n*INCH_PER_MM,N_DECIMAL_COORDVALUE_INCH);
-  } else {
-    printFloat(n,N_DECIMAL_COORDVALUE_MM);
-  }
+void printFloat_CoordValue (float n) {
+    if (settings.flags.report_inches)
+        printFloat(n * INCH_PER_MM, N_DECIMAL_COORDVALUE_INCH);
+    else
+        printFloat(n, N_DECIMAL_COORDVALUE_MM);
 }
 
-void printFloat_RateValue(float n) {
-  if (settings.flags.report_inches) {
-    printFloat(n*INCH_PER_MM,N_DECIMAL_RATEVALUE_INCH);
-  } else {
-    printFloat(n,N_DECIMAL_RATEVALUE_MM);
-  }
+void printFloat_RateValue (float n) {
+    if (settings.flags.report_inches)
+        printFloat(n * INCH_PER_MM, N_DECIMAL_RATEVALUE_INCH);
+    else
+        printFloat(n, N_DECIMAL_RATEVALUE_MM);
 }
 
-void printFloat_SettingValue(float n) { printFloat(n,N_DECIMAL_SETTINGVALUE); }
+void printFloat_SettingValue (float n)
+{
+    printFloat(n, N_DECIMAL_SETTINGVALUE);
+}
 
 
-// Debug tool to print free memory in bytes at the called point.
+// Debug tool to print free memory in byte s at the called point.
 // NOTE: Keep commented unless using. Part of this function always gets compiled in.
 // void printFreeMemory()
 // {

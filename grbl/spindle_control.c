@@ -47,7 +47,7 @@ void _spindle_set_state(uint8_t state)
           #endif
 
           #if (defined(USE_SPINDLE_DIR_AS_ENABLE_PIN) && !defined(SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED)) || !defined(VARIABLE_SPINDLE)
-            hal.spindle_set_state(state, 0.0f);
+            hal.spindle_set_status(state, 0.0f);
           #endif
         }
         sys.report_ovr_counter = 0; // Set to report change immediately

@@ -36,23 +36,14 @@ HAL hal;
 int grbl_enter (void)
 {
 
-	bool looping = true;
+	bool looping = true, driver_ok;
 
 	memset(&hal, 0, sizeof(HAL));  // Clear...
 
-	hal.version = 2; // Update when signatures and/or contract is changed - hal_init() should fail
+	hal.version = 3; // Update when signatures and/or contract is changed - hal_init() should fail
+	hal.spindle_pwm_off = SPINDLE_PWM_OFF_VALUE;
 
-	driver_init();
-
-#ifdef __noeeprom_h__
-	if(!hal.hasEEPROM && (hal.hasEEPROM = noeeprom_init())) {
-	    hal.eeprom_get_char = &noeeprom_get_char;
-	    hal.eeprom_put_char = &noeeprom_put_char;
-	    hal.memcpy_to_eeprom_with_checksum = &memcpy_to_noeeprom_with_checksum;
-	    hal.memcpy_from_eeprom_with_checksum = &memcpy_from_noeeprom_with_checksum;
-	    settings_restore(SETTINGS_RESTORE_ALL);
-	}
-#endif
+	driver_ok = driver_init();
 
 	hal.limit_interrupt_callback = &limit_interrupt_handler;
 	hal.control_interrupt_callback = &control_interrupt_handler;
@@ -60,11 +51,84 @@ int grbl_enter (void)
 	hal.protocol_process_realtime = &protocol_process_realtime;
 	hal.protocol_enqueue_gcode = &protocol_enqueue_gcode;
 
+  #ifdef EMULATE_EEPROM
+	eeprom_emu_init();
+  #endif
 	settings_init(); // Load Grbl settings from EEPROM
 
-	memset(sys_position,0,sizeof(sys_position)); // Clear machine position.
+	memset(sys_position, 0, sizeof(sys_position)); // Clear machine position.
 
-	hal.initMCU();
+// check and configure driver
+
+driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
+
+#ifdef VARIABLE_SPINDLE
+	driver_ok = driver_ok & hal.driver_cap.variable_spindle;
+#else
+	hal.driver_cap.variable_spindle = false;
+#endif
+
+#ifdef ENABLE_M7
+    driver_ok = driver_ok & hal.driver_cap.mist_control;
+#else
+    hal.driver_cap.mist_control = false;
+#endif
+
+#ifdef USE_SPINDLE_DIR_AS_ENABLE_PIN
+    driver_ok = driver_ok & hal.driver_cap.spindle_dir;
+#else
+    hal.driver_cap.spindle_dir = false;
+#endif
+
+#ifdef ENABLE_SOFTWARE_DEBOUNCE
+    driver_ok = driver_ok & hal.driver_cap.software_debounce;
+#else
+    hal.driver_cap.software_debounce = false;
+#endif
+
+#ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+    driver_ok = driver_ok && hal.driver_cap.amass_level >= MAX_AMASS_LEVEL;
+    hal.driver_cap.amass_level = MAX_AMASS_LEVEL;
+#else
+    hal.driver_cap.amass_level = 0;
+#endif
+
+#ifndef STEP_PULSE_DELAY // -> setting
+	hal.driver_cap.step_pulse_delay = false;
+#endif
+
+#ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
+#endif
+
+// settings to be moved to EEPROM
+
+#ifdef DISABLE_LIMIT_PIN_PULL_UP
+#endif
+
+#ifdef DISABLE_PROBE_PIN_PULL_UP
+#endif
+
+#ifdef DISABLE_CONTROL_PIN_PULL_UP
+#endif
+
+#ifdef INVERT_COOLANT_FLOOD_PIN
+	settings.flags.invert_flood_pin = true;
+#endif
+
+#ifdef INVERT_COOLANT_MIST_PIN
+    settings.flags.invert_mist_pin = true;
+#endif
+
+#ifdef SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED
+    settings.flags.spindle_disable_with_zero_speed = true;
+#endif
+
+	if(!driver_ok) {
+	    hal.serial_write_string("Grbl: incompatible driver\r\n");
+	    while(true);
+	}
+
+	hal.driver_setup();
 
 	if(hal.get_position)
 	    hal.get_position(&sys_position); // TODO:  restore on abort when returns true?
@@ -99,7 +163,7 @@ int grbl_enter (void)
       sys.f_override = DEFAULT_FEED_OVERRIDE;  // Set to 100%
       sys.r_override = DEFAULT_RAPID_OVERRIDE; // Set to 100%
       sys.spindle_speed_ovr = DEFAULT_SPINDLE_SPEED_OVERRIDE; // Set to 100%
-  		memset(sys_probe_position,0,sizeof(sys_probe_position)); // Clear probe position.
+      memset(sys_probe_position,0,sizeof(sys_probe_position)); // Clear probe position.
       sys_probe_state = 0;
       sys_rt_exec_state = 0;
       sys_rt_exec_alarm = 0;
@@ -121,7 +185,7 @@ int grbl_enter (void)
 
       // Start Grbl main loop. Processes program inputs and executes them.
       if(!(looping = protocol_main_loop()))
-          looping = hal.releaseMCU == 0 || hal.releaseMCU();
+          looping = hal.driver_release == 0 || hal.driver_release();
 
     }
 

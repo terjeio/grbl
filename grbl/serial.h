@@ -24,7 +24,7 @@
 
 #define SERIAL_NO_DATA -1
 
-#define RXX_BUFFER_SIZE hal.serial_get_rx_buffer_size()
+#define SERIAL_RX_BUFFER_SIZE hal.rx_buffer_size
 #define serial_write(c) hal.serial_write(c)
 #define serial_read() hal.serial_read()
 #define serial_reset_read_buffer() hal.serial_reset_read_buffer()

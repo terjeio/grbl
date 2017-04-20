@@ -1,5 +1,5 @@
 /*
-  eeprom.h - EEPROM methods
+  eeprom_emulate.h - EEPROM emulation methods
   Part of Grbl
 
   Copyright (c) 2017 Terje Io
@@ -22,10 +22,19 @@
 #ifndef __noeeprom_h__
 #define __noeeprom_h__
 
-bool noeeprom_init();
-unsigned char noeeprom_get_char(unsigned int addr);
-void noeeprom_put_char(unsigned int addr, unsigned char new_value);
-void memcpy_to_noeeprom_with_checksum(unsigned int destination, char *source, unsigned int size);
-int memcpy_from_noeeprom_with_checksum(char *destination, unsigned int source, unsigned int size);
+#define EEPROM_SIZE 1024
+
+typedef struct {
+    bool is_dirty;
+    bool global_settings;
+    bool build_info;
+    bool startup_lines[N_STARTUP_LINE];
+    bool coord_data[N_COORDINATE_SYSTEM];
+} settings_dirty_t;
+
+extern settings_dirty_t settings_dirty;
+
+bool eeprom_emu_init();
+void eeprom_emu_sync_physical ();
 
 #endif

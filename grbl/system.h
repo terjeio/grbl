@@ -37,20 +37,10 @@
 #define EXEC_MOTION_CANCEL  bit(6) // bitmask 01000000
 #define EXEC_SLEEP          bit(7) // bitmask 10000000
 
-// Alarm executor codes. Valid values (1-255). Zero is reserved.
-#define EXEC_ALARM_HARD_LIMIT           1
-#define EXEC_ALARM_SOFT_LIMIT           2
-#define EXEC_ALARM_ABORT_CYCLE          3
-#define EXEC_ALARM_PROBE_FAIL_INITIAL   4
-#define EXEC_ALARM_PROBE_FAIL_CONTACT   5
-#define EXEC_ALARM_HOMING_FAIL_RESET    6
-#define EXEC_ALARM_HOMING_FAIL_DOOR     7
-#define EXEC_ALARM_HOMING_FAIL_PULLOFF  8
-#define EXEC_ALARM_HOMING_FAIL_APPROACH 9
-
 // Define system state bit map. The state variable primarily tracks the individual functions
 // of Grbl to manage each without overlapping. It is also used as a messaging flag for
 // critical events.
+// NOTE: flags are mutually exclusive, bit map allows testing for multiple states (except STATE_IDLE) in a single statement
 #define STATE_IDLE          0      // Must be zero. No flags.
 #define STATE_ALARM         bit(0) // In alarm state. Locks out all g-code processes. Allows settings access.
 #define STATE_CHECK_MODE    bit(1) // G-code check mode. Locks out planner and motion only.
@@ -61,12 +51,87 @@
 #define STATE_SAFETY_DOOR   bit(6) // Safety door is ajar. Feed holds and de-energizes system.
 #define STATE_SLEEP         bit(7) // Sleep state.
 
+// Define Grbl status codes. Valid values (0-255)
+typedef enum {
+    Status_OK = 0,
+    Status_ExpectedCommandLetter = 1,
+    Status_BadNumberFormat = 2,
+    Status_InvalidStatement = 3,
+    Status_NegativeValue = 4,
+    Status_SettingDisabled = 5,
+    Status_SettingStepPulseMin = 6,
+    Status_SettingReadFail = 7,
+    Status_IdleError = 8,
+    Status_SystemGClock = 9,
+    Status_SoftLimitError = 10,
+    Status_Overflow = 11,
+    Status_MaxStepRateExceeded = 12,
+    Status_CheckDoor = 13,
+    Status_LineLengthExceeded = 14,
+    Status_TravelExceeded = 15,
+    Status_InvalidJogCommand = 16,
+    Status_SettingDisabledLaser = 17,
+
+    Status_GcodeUnsupportedCommand = 20,
+    Status_GcodeModalGroupViolation = 21,
+    Status_GcodeUndefinedFeedRate = 22,
+    Status_GcodeCommandValueNotInteger = 23,
+    Status_GcodeAxisCommandConflict = 24,
+    Status_GcodeWordRepeated = 25,
+    Status_GcodeNoAxisWords = 26,
+    Status_GcodeInvalidLineNumber = 27,
+    Status_GcodeValueWordMissing = 28,
+    Status_GcodeUnsupportedCoordSys = 29,
+    Status_GcodeG53InvalidMotionMode = 30,
+    Status_GcodeAxisWordsExist = 31,
+    Status_GcodeNoAxisWordsInPlane = 32,
+    Status_GcodeInvalidTarget = 33,
+    Status_GcodeArcRadiusError = 34,
+    Status_GcodeNoOffsetsInPlane = 35,
+    Status_GcodeUnusedWords = 36,
+    Status_GcodeG43DynamicAxisError = 37,
+    Status_GcodeMaxValueExceeded = 38
+} status_code_t;
+
+// Define Grbl feedback message codes. Valid values (0-255).
+typedef enum {
+    Message_CriticalEvent = 1,
+    Message_AlarmLock = 2,
+    Message_AlarmUnlock = 3,
+    Message_Enabled = 4,
+    Message_Disabled = 5,
+    Message_SafetyDoorAjar = 6,
+    Message_CheckLimits = 7,
+    Message_ProgramEnd = 8,
+    Message_RestoreDefaults = 9,
+    Message_SpindleRestore = 10,
+    Message_SleepMode = 11
+} message_code_t;
+
+// Alarm executor codes. Valid values (1-255). Zero is reserved.
+typedef enum {
+    Alarm_HardLimit = 1,
+    Alarm_SoftLimit = 2,
+    Alarm_AbortCycle = 3,
+    Alarm_ProbeFailInitial = 4,
+    Alarm_ProbeFailContact = 5,
+    Alarm_HomingFailReset = 6,
+    Alarm_HomingFailDoor = 7,
+    Alarm_FailPulloff = 8,
+    Alarm_HomingFailApproach = 9
+} alarm_code_t;
+
 // Define step segment generator state flags.
-#define STEP_CONTROL_NORMAL_OP            0  // Must be zero.
-#define STEP_CONTROL_END_MOTION           bit(0)
-#define STEP_CONTROL_EXECUTE_HOLD         bit(1)
-#define STEP_CONTROL_EXECUTE_SYS_MOTION   bit(2)
-#define STEP_CONTROL_UPDATE_SPINDLE_PWM   bit(3)
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t end_motion         :1,
+                execute_hold       :1,
+                execute_sys_motion :1,
+                update_spindle_pwm :1;
+    };
+} step_control_t;
+
 
 typedef union {
     uint8_t value;
@@ -110,8 +175,9 @@ typedef struct {
   bool exit;				   // System exit flag. Used in combination with abort to terminate main loop.
   suspend_t suspend;           // System suspend bitflag variable that manages holds, cancels, and safety door.
   bool soft_limit;             // Tracks soft limit errors for the state machine. (boolean)
-  uint8_t step_control;        // Governs the step segment generator dependi on system state.
-  uint8_t probe_succeeded;     // Tracks if last probing cycle was successful.
+  bool block_delete_enabled;   // Set to true to enable block delete
+  step_control_t step_control; // Governs the step segment generator depending on system state.
+  bool probe_succeeded;        // Tracks if last probing cycle was successful.
   axes_signals_t homing_axis_lock;    // Locks axes when limits engage. Used as an axis motion mask in the stepper ISR.
   uint8_t f_override;          // Feed rate override value in percent
   uint8_t r_override;          // Rapids override value in percent
@@ -132,9 +198,9 @@ extern system_t sys;
 extern int32_t sys_position[N_AXIS];      // Real-time machine (aka home) position vector in steps.
 extern int32_t sys_probe_position[N_AXIS]; // Last probe position in machine coordinates and steps.
 
-extern volatile uint8_t sys_probe_state;   // Probing state value.  Used to coordinate the probing cycle with stepper ISR.
+extern volatile uint8_t sys_probe_state;   // Probing stue.  Used to coordinate the probing cycle with stepper ISR.
 extern volatile uint8_t sys_rt_exec_state;   // Global realtime executor bitflag variable for state management. See EXEC bitmasks.
-extern volatile uint8_t sys_rt_exec_alarm;   // Global realtime executor bitflag variable for setting various alarms.
+extern volatile uint8_t sys_rt_exec_alarm;   // Global realtimeate val executor bitflag variable for setting various alarms.
 
 #ifdef DEBUG
   #define EXEC_DEBUG_REPORT  bit(0)
@@ -148,7 +214,7 @@ extern volatile uint8_t sys_rt_exec_alarm;   // Global realtime executor bitflag
 bool system_check_safety_door_ajar();
 
 // Executes an internal system command, defined as a string starting with a '$'
-uint8_t system_execute_line(char *line);
+status_code_t system_execute_line(char *line);
 
 // Execute the startup script lines stored in EEPROM upon initialization
 void system_execute_startup(char *line);
@@ -174,9 +240,9 @@ bool system_check_travel_limits(float *target);
 // Special handlers for setting and clearing Grbl's real-time execution flags.
 #define system_set_exec_state_flag(mask) hal.set_bits_atomic(&sys_rt_exec_state, (mask))
 #define system_clear_exec_state_flag(mask) hal.clear_bits_atomic(&sys_rt_exec_state, (mask))
-#define system_clear_exec_states() hal.clear_bits_atomic(&sys_rt_exec_state, 0xFF)
-#define system_set_exec_alarm(code) hal.set_bits_atomic(&sys_rt_exec_alarm, (code)) // clear first?
-#define system_clear_exec_alarm() hal.clear_bits_atomic(&sys_rt_exec_alarm, 0xFF)
+#define system_clear_exec_states() hal.set_value_atomic(&sys_rt_exec_state, 0)
+#define system_set_exec_alarm(code) hal.set_value_atomic(&sys_rt_exec_alarm, (uint8_t)(code))
+#define system_clear_exec_alarm() hal.set_value_atomic(&sys_rt_exec_alarm, 0)
 
 void control_interrupt_handler (controlsignals_t signals);
 
