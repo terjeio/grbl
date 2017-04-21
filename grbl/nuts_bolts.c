@@ -97,13 +97,13 @@ bool read_float (char *line, uint8_t *char_counter, float *float_ptr)
 
 
 // Non-blocking delay function used for general operation and suspend features.
-void delay_sec (float seconds, uint8_t mode)
+void delay_sec (float seconds, delaymode_t mode)
 {
-    uint16_t i = (uint16_t)ceilf((1000/DWELL_TIME_STEP) * seconds);
+    uint16_t i = (uint16_t)ceilf((1000 / DWELL_TIME_STEP) * seconds);
     while (!sys.abort && --i) {
-        if (mode == DELAY_MODE_DWELL) {
+        if (mode == DelayMode_Dwell) {
             protocol_execute_realtime();
-        } else { // DELAY_MODE_SYS_SUSPEND
+        } else { // DelayMode_SysSuspend
           // Execute rt_system() only to avoid nesting suspend loops.
           protocol_exec_rt_system();
           if (sys.suspend.restart_retract) // Bail, if safety door reopens.

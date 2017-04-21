@@ -27,7 +27,7 @@
 
 // Version of the EEPROM data. Will be used to migrate existing data from older versions of Grbl
 // when firmware is upgraded. Always stored in byte 0 of eeprom
-#define SETTINGS_VERSION 11  // NOTE: Check settings_reset() when moving to next version.
+#define SETTINGS_VERSION 12  // NOTE: Check settings_reset() when moving to next version.
 
 // Define settings restore bitflags.
 #define SETTINGS_RESTORE_DEFAULTS bit(0)
@@ -101,12 +101,12 @@ typedef union {
                  hard_limit_enable :1,
                  homing_enable     :1,
                  soft_limit_enable :1,
-                 invert_limit_pins :1,
                  invert_probe_pin  :1,
                  invert_flood_pin  :1,
                  invert_mist_pin   :1,
                  invert_spindle_enable :1,
-                 spindle_disable_with_zero_speed :1;
+                 spindle_disable_with_zero_speed :1,
+                 disable_probe_pullup :1;
     };
 } settingflags_t;
 
@@ -134,6 +134,10 @@ typedef struct {
   float rpm_min;
 
   uint8_t stepper_idle_lock_time; // If max value 255, steppers do not disable.
+  control_signals_t control_invert_mask;
+  control_signals_t control_disable_pullup_mask;
+  axes_signals_t limit_invert_mask;
+  axes_signals_t limit_disable_pullup_mask;
   axes_signals_t step_invert_mask;
   axes_signals_t dir_invert_mask;
   uint8_t homing_dir_mask;

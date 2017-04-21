@@ -1,5 +1,5 @@
 /*
-  main.c - An embedded CNC Controller with rs274/ngc (g-code) support
+  grbllib.h - An embedded CNC Controller with rs274/ngc (g-code) support
   Part of Grbl
 
   Copyright (c) 2011-2015 Sungeun K. Jeon

@@ -24,7 +24,7 @@
 // only the realtime command execute variable to have the main program execute these when
 // its ready. This works exactly like the character-based realtime commands when picked off
 // directly from the incoming serial data stream.
-void control_interrupt_handler (controlsignals_t signals)
+void control_interrupt_handler (control_signals_t signals)
 {
     if (signals.value) {
         if (signals.reset)

@@ -189,7 +189,7 @@ void report_grbl_settings() {
     report_util_uint8_setting(Setting_StepInvertMask, settings.step_invert_mask.value);
     report_util_uint8_setting(Setting_DirInvertMask, settings.dir_invert_mask.value);
     report_util_uint8_setting(Setting_InvertStepperEnable, settings.flags.invert_st_enable);
-    report_util_uint8_setting(Setting_InvertLimitPins, settings.flags.invert_limit_pins);
+    report_util_uint8_setting(Setting_InvertLimitPins, settings.limit_invert_mask.value);
     report_util_uint8_setting(Setting_InvertProbePin, settings.flags.invert_probe_pin);
     report_util_uint8_setting(Setting_StatusReportMask, settings.status_report_mask.value);
     report_util_float_setting((uint8_t)Setting_JunctionDeviation, settings.junction_deviation, N_DECIMAL_SETTINGVALUE);
@@ -305,9 +305,9 @@ void report_ngc_parameters ()
 void report_gcode_modes ()
 {
     printPgmString(PSTR("[GC:G"));
-    if (gc_state.modal.motion >= MOTION_MODE_PROBE_TOWARD) {
+    if (gc_state.modal.motion >= MotionMode_ProbeToward) {
         printPgmString(PSTR("38."));
-        print_uint8_base10(gc_state.modal.motion - (MOTION_MODE_PROBE_TOWARD - 2));
+        print_uint8_base10(gc_state.modal.motion - (MotionMode_ProbeToward - 2));
     } else
         print_uint8_base10(gc_state.modal.motion);
 
@@ -330,7 +330,7 @@ void report_gcode_modes ()
         report_util_gcode_modes_M();
         switch (gc_state.modal.program_flow) {
 
-            case PROGRAM_FLOW_PAUSED:
+            case ProgramFlow_Paused:
                 serial_write('0');
                 break;
 
@@ -338,9 +338,9 @@ void report_gcode_modes ()
                 serial_write('1');
                 break; */
 
-            case PROGRAM_FLOW_COMPLETED_M2:
-            case PROGRAM_FLOW_COMPLETED_M30:
-                print_uint8_base10(gc_state.modal.program_flow);
+            case ProgramFlow_CompletedM2:
+            case ProgramFlow_CompletedM30:
+                print_uint8_base10((uint8_t)gc_state.modal.program_flow);
                 break;
         }
     }
@@ -628,7 +628,7 @@ void report_realtime_status ()
 
   #ifdef REPORT_FIELD_PIN_STATE
     axes_signals_t lim_pin_state = (axes_signals_t)limits_get_state();
-    controlsignals_t ctrl_pin_state = system_control_get_state();
+    control_signals_t ctrl_pin_state = system_control_get_state();
     uint8_t prb_pin_state = probe_get_state();
 
     if (lim_pin_state.value | ctrl_pin_state.value | prb_pin_state | sys.block_delete_enabled) {
@@ -725,11 +725,3 @@ void report_realtime_status ()
     serial_write('>');
     report_util_line_feed();
 }
-
-
-#ifdef DEBUG
-  void report_realtime_debug()
-  {
-
-  }
-#endif

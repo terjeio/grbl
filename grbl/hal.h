@@ -91,7 +91,7 @@ typedef struct HAL {
 	spindle_state_t (*spindle_get_state)(void);
 	uint32_t (*spindle_set_speed)(uint32_t pwm_value);
 	uint32_t (*spindle_compute_pwm_value)(float rpm);
-	controlsignals_t (*system_control_get_state)(void);
+	control_signals_t (*system_control_get_state)(void);
 
 	void (*stepper_wake_up)(void);
 	void (*stepper_go_idle)(void);
@@ -129,7 +129,7 @@ typedef struct HAL {
 	bool (*protocol_process_realtime)(int32_t data);
 	void (*stepper_interrupt_callback)(void);
 	void (*limit_interrupt_callback)(axes_signals_t state);
-	void (*control_interrupt_callback)(controlsignals_t signals);
+	void (*control_interrupt_callback)(control_signals_t signals);
 
 	driver_cap_t driver_cap;
 } HAL;

@@ -57,19 +57,15 @@
 // NOTE: All override realtime commands must be in the extended ASCII character set, starting
 // at character value 128 (0x80) and up to 255 (0xFF). If the normal set of realtime commands,
 // such as status reports, feed hold, reset, and cycle start, are moved to the extended set
-// space, serial.c's RX ISR will need to be modified to accomodate the change.
-// #define CMD_RESET 0x80
-// #define CMD_STATUS_REPORT 0x81
-// #define CMD_CYCLE_START 0x82
-// #define CMD_FEED_HOLD 0x83
+// space, protocol.c's protocol_process_realtime() will need to be modified to accomodate the change.
 #define CMD_SAFETY_DOOR 0x84
 #define CMD_JOG_CANCEL  0x85
-#define CMD_DEBUG_REPORT 0x86 // Only when DEBUG enabled, sends debug report in '{}' braces.
+//#define CMD_DEBUG_REPORT 0x86 // Only when DEBUG enabled, sends debug report in '{}' braces.
 #define CMD_FEED_OVR_RESET 0x90         // Restores feed override value to 100%.
 #define CMD_FEED_OVR_COARSE_PLUS 0x91
 #define CMD_FEED_OVR_COARSE_MINUS 0x92
-#define CMD_FEED_OVR_FINE_PLUS  0x93
-#define CMD_FEED_OVR_FINE_MINUS  0x94
+#define CMD_FEED_OVR_FINE_PLUS 0x93
+#define CMD_FEED_OVR_FINE_MINUS 0x94
 #define CMD_RAPID_OVR_RESET 0x95        // Restores rapid override value to 100%.
 #define CMD_RAPID_OVR_MEDIUM 0x96
 #define CMD_RAPID_OVR_LOW 0x97
@@ -346,9 +342,9 @@
 // normal-open switch and vice versa.
 // NOTE: All pins associated with the feature are disabled, i.e. XYZ limit pins, not individual axes.
 // WARNING: When the pull-ups are disabled, this requires additional wiring with pull-down resistors!
-//#define DISABLE_LIMIT_PIN_PULL_UP
+//#define DISABLE_LIMIT_PINS_PULL_UP_MASK
 //#define DISABLE_PROBE_PIN_PULL_UP
-//#define DISABLE_CONTROL_PIN_PULL_UP
+//#define DISABLE_CONTROL_PINS_PULL_UP_MASK
 
 // Sets which axis the tool length offset is applied. Assumes the spindle is always parallel with
 // the selected axis with the tool oriented toward the negative direction. In other words, a positive

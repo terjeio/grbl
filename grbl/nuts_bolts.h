@@ -64,8 +64,10 @@ typedef union {
 #define MM_PER_INCH (25.40f)
 #define INCH_PER_MM (0.0393701f)
 
-#define DELAY_MODE_DWELL       0
-#define DELAY_MODE_SYS_SUSPEND 1
+typedef enum {
+    DelayMode_Dwell = 0,
+    DelayMode_SysSuspend
+} delaymode_t;
 
 // Useful macros
 #define clear_vector(a) memset(a, 0, sizeof(a))
@@ -91,11 +93,7 @@ typedef union {
 bool read_float(char *line, uint8_t *char_counter, float *float_ptr);
 
 // Non-blocking delay function used for general operation and suspend features.
-void delay_sec(float seconds, uint8_t mode);
-
-// Computes hypotenuse, avoiding avr-gcc's bloated version and the extra error checking.
-//float hypot_f(float x, float y);
-//#define hypot_f(x, y) sqrt(((x)*(x)) + ((y)*(y)))
+void delay_sec(float seconds, delaymode_t mode);
 
 float convert_delta_vector_to_unit_vector(float *vector);
 float limit_value_by_axis_maximum(float *max_value, float *unit_vec);

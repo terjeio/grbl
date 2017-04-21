@@ -173,15 +173,3 @@ void printFloat_SettingValue (float n)
 {
     printFloat(n, N_DECIMAL_SETTINGVALUE);
 }
-
-
-// Debug tool to print free memory in byte s at the called point.
-// NOTE: Keep commented unless using. Part of this function always gets compiled in.
-// void printFreeMemory()
-// {
-//   extern int __heap_start, *__brkval;
-//   uint16_t free;  // Up to 64k values.
-//   free = (int) &free - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
-//   printInteger((int32_t)free);
-//   printString(" ");
-// }

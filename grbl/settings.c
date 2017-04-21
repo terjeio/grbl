@@ -116,13 +116,13 @@ void settings_restore (uint8_t restore_flag) {
 	    if (DEFAULT_SOFT_LIMIT_ENABLE)
             settings.flags.soft_limit_enable = 1;
 
-	    if (DEFAULT_INVERT_LIMIT_PINS)
-            settings.flags.invert_limit_pins = 1;
-
 	    if (DEFAULT_INVERT_PROBE_PIN)
             settings.flags.invert_probe_pin = 1;
 
-	    settings.steps_per_mm[X_AXIS] = DEFAULT_X_STEPS_PER_MM;
+      #ifdef INVERT_LIMIT_PIN_MASK
+	    settings.limit_invert_mask = INVERT_LIMIT_PIN_MASK;
+      #endif
+        settings.steps_per_mm[X_AXIS] = DEFAULT_X_STEPS_PER_MM;
 	    settings.steps_per_mm[Y_AXIS] = DEFAULT_Y_STEPS_PER_MM;
 	    settings.steps_per_mm[Z_AXIS] = DEFAULT_Z_STEPS_PER_MM;
 	    settings.max_rate[X_AXIS] = DEFAULT_X_MAX_RATE;
@@ -283,7 +283,7 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
                 break;
 
             case Setting_InvertLimitPins: // Reset to ensure change. Immediate re-init may cause problems.
-                settings.flags.invert_limit_pins = int_value;
+                settings.limit_invert_mask.value = int_value;
                 break;
 
             case Setting_InvertProbePin: // Reset to ensure change. Immediate re-init may cause problems.

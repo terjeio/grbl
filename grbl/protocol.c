@@ -587,13 +587,6 @@ void protocol_exec_rt_system ()
 
     // End execute overrides.
 
-  #ifdef DEBUG
-    if (sys_rt_exec_debug) {
-        report_realtime_debug();
-        sys_rt_exec_debug = 0;
-    }
-   #endif
-
     // Reload step segment buffer
     if (sys.state & (STATE_CYCLE | STATE_HOLD | STATE_SAFETY_DOOR | STATE_HOMING | STATE_SLEEP| STATE_JOG))
         st_prep_buffer();
@@ -762,7 +755,7 @@ static void protocol_exec_rt_suspend ()
                                 sys.step_control.update_spindle_pwm = true;
                             else {
                                 spindle_set_state(restore_condition & PL_COND_FLAGS_SPINDLE, restore_spindle_speed);
-                                delay_sec(SAFETY_DOOR_SPINDLE_DELAY, DELAY_MODE_SYS_SUSPEND);
+                                delay_sec(SAFETY_DOOR_SPINDLE_DELAY, DelayMode_SysSuspend);
                             }
                         }
 
@@ -770,7 +763,7 @@ static void protocol_exec_rt_suspend ()
                         if (gc_state.modal.coolant != COOLANT_DISABLE && !sys.suspend.restart_retract) {
                             // NOTE: Laser mode will honor this delay. An exhaust system is often controlled by this pin.
                             coolant_set_state(restore_condition & PL_COND_FLAGS_COOLANT);
-                            delay_sec(SAFETY_DOOR_COOLANT_DELAY, DELAY_MODE_SYS_SUSPEND);
+                            delay_sec(SAFETY_DOOR_COOLANT_DELAY, DelayMode_SysSuspend);
                         }
 
                       #ifdef PARKING_ENABLE
@@ -878,15 +871,6 @@ bool protocol_process_realtime (int32_t data) {
             char_counter = 0;
             hal.serial_cancel_read_buffer();
             break;
-
-      #ifdef DEBUG
-        case CMD_DEBUG_REPORT:
-            uint8_t sreg = SREG;
-            cli();
-            bit_true(sys_rt_exec_debug,EXEC_DEBUG_REPORT);
-            SREG = sreg;
-            break;
-      #endif
 
         case CMD_FEED_OVR_RESET:
         case CMD_FEED_OVR_COARSE_PLUS:

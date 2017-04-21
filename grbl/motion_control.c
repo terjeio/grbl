@@ -194,7 +194,7 @@ void mc_dwell (float seconds)
 {
     if (sys.state != STATE_CHECK_MODE) {
         protocol_buffer_synchronize();
-        delay_sec(seconds, DELAY_MODE_DWELL);
+        delay_sec(seconds, DelayMode_Dwell);
     }
 }
 
@@ -253,16 +253,17 @@ void mc_homing_cycle(uint8_t cycle_mask)
 
 // Perform tool length probe cycle. Requires probe switch.
 // NOTE: Upon probe failure, the program will be stopped and placed into ALARM state.
-uint8_t mc_probe_cycle(float *target, plan_line_data_t *pl_data, gc_parser_flags_t parser_flags)
+gc_probe_t mc_probe_cycle (float *target, plan_line_data_t *pl_data, gc_parser_flags_t parser_flags)
 {
     // TODO: Need to update this cycle so it obeys a non-auto cycle start.
     if (sys.state == STATE_CHECK_MODE)
-        return GC_PROBE_CHECK_MODE;
+        return GCProbe_CheckMode;
 
     // Finish all queued commands and empty planner buffer before starting probe cycle.
     protocol_buffer_synchronize();
+
     if (sys.abort)
-        return GC_PROBE_ABORT; // Return if system reset has been issued.
+        return GCProbe_Abort; // Return if system reset has been issued.
 
     // Initialize probing control variables
     bool is_probe_away = parser_flags.probe_is_away;
@@ -276,7 +277,7 @@ uint8_t mc_probe_cycle(float *target, plan_line_data_t *pl_data, gc_parser_flags
         system_set_exec_alarm(Alarm_ProbeFailInitial);
         protocol_execute_realtime();
         probe_configure_invert_mask(false); // Re-initialize invert mask before returning.
-        return GC_PROBE_FAIL_INIT; // Nothing else to do but bail.
+        return GCProbe_FailInit; // Nothing else to do but bail.
     }
 
     // Setup and queue probing motion. Auto cycle-start should not start the cycle.
@@ -289,7 +290,7 @@ uint8_t mc_probe_cycle(float *target, plan_line_data_t *pl_data, gc_parser_flags
     system_set_exec_state_flag(EXEC_CYCLE_START);
     do {
         if(!protocol_execute_realtime()) // Check for system abort
-            return GC_PROBE_ABORT;
+            return GCProbe_Abort;
     } while (sys.state != STATE_IDLE);
 
     // Probing cycle complete!
@@ -317,7 +318,7 @@ uint8_t mc_probe_cycle(float *target, plan_line_data_t *pl_data, gc_parser_flags
     report_probe_parameters();
     #endif
     // Successful probe cycle or Failed to trigger probe within travel. With or without error.
-    return sys.probe_succeeded ? GC_PROBE_FOUND : GC_PROBE_FAIL_END;
+    return sys.probe_succeeded ? GCProbe_Found : GCProbe_FailEnd;
 }
 
 

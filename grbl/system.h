@@ -141,7 +141,7 @@ typedef union {
                 cycle_start :1,
                 safety_door :1;
     };
-} controlsignals_t;
+} control_signals_t;
 
 typedef union {
     uint8_t value;
@@ -170,28 +170,29 @@ typedef union {
 
 // Define global system variables
 typedef struct {
-  uint8_t state;               // Tracks the current system state of Grbl.
-  uint8_t abort;               // System abort flag. Forces exit back to main loop for reset.
-  bool exit;				   // System exit flag. Used in combination with abort to terminate main loop.
-  suspend_t suspend;           // System suspend bitflag variable that manages holds, cancels, and safety door.
-  bool soft_limit;             // Tracks soft limit errors for the state machine. (boolean)
-  bool block_delete_enabled;   // Set to true to enable block delete
-  step_control_t step_control; // Governs the step segment generator depending on system state.
-  bool probe_succeeded;        // Tracks if last probing cycle was successful.
-  axes_signals_t homing_axis_lock;    // Locks axes when limits engage. Used as an axis motion mask in the stepper ISR.
-  uint8_t f_override;          // Feed rate override value in percent
-  uint8_t r_override;          // Rapids override value in percent
-  uint8_t spindle_speed_ovr;   // Spindle speed value in percent
-  spindle_stop_t spindle_stop_ovr;    // Tracks spindle stop override states
-  uint8_t report_ovr_counter;  // Tracks when to add override data to status reports.
-  uint8_t report_wco_counter;  // Tracks when to add work coordinate offset data to status reports.
+    uint8_t state;                      // Tracks the current system state of Grbl.
+    bool abort;                         // System abort flag. Forces exit back to main loop for reset.
+    bool exit;				            // System exit flag. Used in combination with abort to terminate main loop.
+    suspend_t suspend;                  // System suspend bitflag variable that manages holds, cancels, and safety door.
+    bool soft_limit;                    // Tracks soft limit errors for the state machine. (boolean)
+    bool block_delete_enabled;          // Set to true to enable block delete
+    step_control_t step_control;        // Governs the step segment generator depending on system state.
+    bool probe_succeeded;               // Tracks if last probing cycle was successful.
+    axes_signals_t homing_axis_lock;    // Locks axes when limits engage. Used as an axis motion mask in the stepper ISR.
+    uint8_t f_override;                 // Feed rate override value in percent
+    uint8_t r_override;                 // Rapids override value in percent
+    uint8_t spindle_speed_ovr;          // Spindle speed value in percent
+    spindle_stop_t spindle_stop_ovr;    // Tracks spindle stop override states
+    uint8_t report_ovr_counter;         // Tracks when to add override data to status reports.
+    uint8_t report_wco_counter;         // Tracks when to add work coordinate offset data to status reports.
   #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-    uint8_t override_ctrl;     // Tracks override control states.
+    uint8_t override_ctrl;              // Tracks override control states.
   #endif
   #ifdef VARIABLE_SPINDLE
     float spindle_speed;
   #endif
 } system_t;
+
 extern system_t sys;
 
 // NOTE: These position variables may need to be declared as volatiles, if problems arise.
@@ -201,11 +202,6 @@ extern int32_t sys_probe_position[N_AXIS]; // Last probe position in machine coo
 extern volatile uint8_t sys_probe_state;   // Probing stue.  Used to coordinate the probing cycle with stepper ISR.
 extern volatile uint8_t sys_rt_exec_state;   // Global realtime executor bitflag variable for state management. See EXEC bitmasks.
 extern volatile uint8_t sys_rt_exec_alarm;   // Global realtimeate val executor bitflag variable for setting various alarms.
-
-#ifdef DEBUG
-  #define EXEC_DEBUG_REPORT  bit(0)
-  extern volatile uint8_t sys_rt_exec_debug;
-#endif
 
 // Returns bitfield of control pin states, organized by CONTROL_PIN_INDEX. (1=triggered, 0=not triggered).
 #define system_control_get_state() hal.system_control_get_state()
@@ -244,6 +240,6 @@ bool system_check_travel_limits(float *target);
 #define system_set_exec_alarm(code) hal.set_value_atomic(&sys_rt_exec_alarm, (uint8_t)(code))
 #define system_clear_exec_alarm() hal.set_value_atomic(&sys_rt_exec_alarm, 0)
 
-void control_interrupt_handler (controlsignals_t signals);
+void control_interrupt_handler (control_signals_t signals);
 
 #endif

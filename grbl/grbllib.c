@@ -1,5 +1,5 @@
 /*
-  main.c - An embedded CNC Controller with rs274/ngc (g-code) support
+  grbllib.c - An embedded CNC Controller with rs274/ngc (g-code) support
   Part of Grbl
 
   Copyright (c) 2017 Terje Io
@@ -100,15 +100,22 @@ driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
 #ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
 #endif
 
-// settings to be moved to EEPROM
+// TODO: settings to be made configurable via $nn=
 
-#ifdef DISABLE_LIMIT_PIN_PULL_UP
+#ifdef DISABLE_LIMIT_PINS_PULL_UP_MASK
+	settings.limit_disable_pullup_mask = DISABLE_LIMIT_PINS_PULL_UP_MASK;
 #endif
 
 #ifdef DISABLE_PROBE_PIN_PULL_UP
+	settings.flags.disable_probe_pullup = true;
 #endif
 
-#ifdef DISABLE_CONTROL_PIN_PULL_UP
+#ifdef DISABLE_CONTROL_PINS_PULL_UP_MASK
+	settings.control_disable_pullup_mask = DISABLE_CONTROL_PINS_PULL_UP_MASK;
+#endif
+
+#ifdef INVERT_SPINDLE_ENABLE_PIN
+	settings.flags.invert_spindle_enable = true;
 #endif
 
 #ifdef INVERT_COOLANT_FLOOD_PIN
@@ -121,6 +128,14 @@ driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
 
 #ifdef SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED
     settings.flags.spindle_disable_with_zero_speed = true;
+#endif
+
+#ifdef INVERT_CONTROL_PIN_MASK
+    settings.control_invert_mask = INVERT_CONTROL_PIN_MASK;
+#endif
+
+#ifdef INVERT_LIMIT_PIN_MASK
+    settings.limit_invert_mask = INVERT_LIMIT_PIN_MASK;
 #endif
 
 	if(!driver_ok) {
