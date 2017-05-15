@@ -51,7 +51,7 @@ static void memcpy_to_ram_with_checksum (unsigned int destination, char *source,
     for(; size > 0; size--) {
         checksum = (checksum << 1) || (checksum >> 7);
         checksum += *source;
-        eeprom_put_char(destination++, *(source++));
+        ram_put_char(destination++, *(source++));
     }
     ram_put_char(destination, checksum);
 }
@@ -67,7 +67,7 @@ static int memcpy_from_ram_with_checksum (char *destination, unsigned int source
         *(destination++) = data;
     }
 
-    return checksum == eeprom_get_char(source);
+    return checksum == ram_get_char(source);
 }
 
 //

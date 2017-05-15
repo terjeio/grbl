@@ -213,7 +213,7 @@
 // #define INVERT_COOLANT_FLOOD_PIN // Default disabled. Uncomment to enable.
 // #define INVERT_COOLANT_MIST_PIN // Default disabled. Note: Enable M7 mist coolant in config.h
 
-// When Grbl powers-cycles or is hard reset with the Arduino reset button, Grbl boots up with no ALARM
+// When Grbl powers-cycles or is hard reset with the MCU reset button, Grbl boots up with no ALARM
 // by default. This is to make it as simple as possible for new users to start using Grbl. When homing
 // is enabled and a user has installed limit switches, Grbl will boot up in an ALARM state to indicate
 // Grbl doesn't know its position and to force the user to home before proceeding. This option forces
@@ -353,8 +353,7 @@
 
 // Enables variable spindle output voltage for different RPM values. On the Arduino Uno, the spindle
 // enable pin will output 5V for maximum RPM with 256 intermediate levels and 0V when disabled.
-// NOTE: IMPORTANT for Arduino Unos! When enabled, the Z-limit pin D11 and spindle enable pin D12 switch!
-// The hardware PWM output on pin D11 is required for variable spindle output voltages.
+// A hardware PWM output is required for variable spindle output voltages.
 #define VARIABLE_SPINDLE // Default enabled. Comment to disable.
 
 // Used by variable spindle output only. This forces the PWM output to a minimum duty cycle when enabled.
@@ -445,7 +444,7 @@
 
 // The number of linear motions in the planner buffer to be planned at any give time. The vast
 // majority of RAM that Grbl uses is based on this buffer size. Only increase if there is extra
-// available RAM, like when re-compiling for a Mega2560. Or decrease if the Arduino begins to
+// available RAM, like when re-compiling for MCU with ample amounts of RAM. Or decrease if the MCU begins to
 // crash due to the lack of available RAM or if the CPU is having trouble keeping up with planning
 // new incoming motions as they are executed.
 // #define BLOCK_BUFFER_SIZE 16 // Uncomment to override default in planner.h.
@@ -466,7 +465,7 @@
 // can be too small and g-code blocks can get truncated. Officially, the g-code standards
 // support up to 256 characters. In future versions, this default will be increased, when
 // we know how much extra memory space we can re-invest into this.
-// #define LINE_BUFFER_SIZE 80  // Uncomment to override default in protocol.h
+// #define LINE_BUFFER_SIZE 80  // Uncomment to override default (256) in protocol.h
 
 // Serial send and receive buffer size. The receive buffer is often used as another streaming
 // buffer to store incoming blocks to be processed by Grbl when its ready. Most streaming
@@ -478,11 +477,10 @@
 // 115200 baud will take 5 msec to transmit a typical 55 character report. Worst case reports are
 // around 90-100 characters. As long as the serial TX buffer doesn't get continually maxed, Grbl
 // will continue operating efficiently. Size the TX buffer around the size of a worst-case report.
-// #define RX_BUFFER_SIZE 128 // (1-254) Uncomment to override defaults in serial.h
-// #define TX_BUFFER_SIZE 100 // (1-254)
+// NOTE: buffer allocation is delgated to the HAL driver
 
 // A simple software debouncing feature for hard limit switches. When enabled, the interrupt
-// monitoring the hard limit switch pins will enable the Arduino's watchdog timer to re-check
+// monitoring the hard limit switch pins will enable a timer to re-check
 // the limit pin state after a delay of about 32msec. This can help with CNC machines with
 // problematic false triggering of their hard limit switches, but it WILL NOT fix issues with
 // electrical interference on the signal cables from external sources. It's recommended to first
@@ -511,8 +509,8 @@
 // uses the homing pull-off distance setting times the LOCATE_SCALAR to pull-off and re-engage
 // the limit switch.
 // NOTE: Both of these values must be greater than 1.0 to ensure proper function.
-// #define HOMING_AXIS_SEARCH_SCALAR  1.5 // Uncomment to override defaults in limits.c.
-// #define HOMING_AXIS_LOCATE_SCALAR  10.0 // Uncomment to override defaults in limits.c.
+// #define HOMING_AXIS_SEARCH_SCALAR  1.5f // Uncomment to override defaults in limits.c.
+// #define HOMING_AXIS_LOCATE_SCALAR  10.0f // Uncomment to override defaults in limits.c.
 
 // Enable the '$RST=*', '$RST=$', and '$RST=#' eeprom restore commands. There are cases where
 // these commands may be undesirable. Simply comment the desired macro to disable it.
@@ -525,7 +523,7 @@
 // the settings or other EEPROM data structure changes between Grbl versions, Grbl will automatically
 // wipe and restore the EEPROM. This macro controls what data is wiped and restored. This is useful
 // particularily for OEMs that need to retain certain data. For example, the BUILD_INFO string can be
-// written into the Arduino EEPROM via a seperate .INO sketch to contain product data. Altering this
+// written into the EEPROM via a separate .INO sketch to contain product data. Altering this
 // macro to not restore the build info EEPROM will ensure this data is retained after firmware upgrades.
 // NOTE: Uncomment to override defaults in settings.h
 // #define SETTINGS_RESTORE_ALL (SETTINGS_RESTORE_DEFAULTS | SETTINGS_RESTORE_PARAMETERS | SETTINGS_RESTORE_STARTUP_LINES | SETTINGS_RESTORE_BUILD_INFO)
@@ -584,10 +582,10 @@
 
 // Configure options for the parking motion, if enabled.
 #define PARKING_AXIS Z_AXIS // Define which axis that performs the parking motion
-#define PARKING_TARGET -5.0 // Parking axis target. In mm, as machine coordinate [-max_travel,0].
-#define PARKING_RATE 500.0 // Parking fast rate after pull-out in mm/min.
-#define PARKING_PULLOUT_RATE 100.0 // Pull-out/plunge slow feed rate in mm/min.
-#define PARKING_PULLOUT_INCREMENT 5.0 // Spindle pull-out and plunge distance in mm. Incremental distance.
+#define PARKING_TARGET -5.0f // Parking axis target. In mm, as machine coordinate [-max_travel,0].
+#define PARKING_RATE 500.0f // Parking fast rate after pull-out in mm/min.
+#define PARKING_PULLOUT_RATE 100.0f // Pull-out/plunge slow feed rate in mm/min.
+#define PARKING_PULLOUT_INCREMENT 5.0f // Spindle pull-out and plunge distance in mm. Incremental distance.
                                       // Must be positive value or equal to zero.
 
 // Enables a special set of M-code commands that enables and disables the parking motion.

@@ -75,11 +75,11 @@ typedef struct HAL {
 	uint32_t rx_buffer_size;
 	uint32_t spindle_pwm_off;
 
-	void (*driver_setup)(void);
+	bool (*driver_setup)(void);
 
 	void (*limits_enable)(bool on);
     axes_signals_t (*limits_get_state)(void);
-	void (*coolant_set_state)(uint8_t mode);
+	void (*coolant_set_state)(coolant_state_t mode);
 	coolant_state_t (*coolant_get_state)(void);
 	void (*delay_ms)(uint16_t ms);
 	void (*delay_us)(uint32_t us);
@@ -87,10 +87,10 @@ typedef struct HAL {
 	bool (*probe_get_state)(void);
 	void (*probe_configure_invert_mask)(bool is_probe_away);
 
-	void (*spindle_set_status)(uint8_t state, float rpm);
+	void (*spindle_set_status)(spindle_state_t state, float rpm, uint8_t spindle_speed_ovr);
 	spindle_state_t (*spindle_get_state)(void);
 	uint32_t (*spindle_set_speed)(uint32_t pwm_value);
-	uint32_t (*spindle_compute_pwm_value)(float rpm);
+	uint32_t (*spindle_compute_pwm_value)(float rpm, uint8_t spindle_speed_ovr);
 	control_signals_t (*system_control_get_state)(void);
 
 	void (*stepper_wake_up)(void);
@@ -119,7 +119,7 @@ typedef struct HAL {
     void (*execute_realtime)(uint8_t state);
 	uint8_t (*userdefined_mcode_check)(uint8_t mcode);
 	status_code_t (*userdefined_mcode_validate)(parser_block_t *gc_block, uint16_t *value_words);
-    void (*userdefined_mcode_execute)(parser_block_t *gc_block);
+    void (*userdefined_mcode_execute)(uint8_t state, parser_block_t *gc_block);
     void (*userdefined_rt_command_execute)(uint8_t cmd);
     bool (*get_position)(int32_t (*position)[3]);
     eeprom_io_t eeprom;

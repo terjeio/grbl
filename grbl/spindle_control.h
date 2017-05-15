@@ -22,13 +22,13 @@
 #ifndef spindle_control_h
 #define spindle_control_h
 
-//#define SPINDLE_NO_SYNC false
-//#define SPINDLE_FORCE_SYNC true
-
-typedef enum {
-    Spindle_Off = 0,
-    Spindle_CW = 1,
-    Spindle_CCW = 2
+typedef union {
+    uint8_t value;
+    struct {
+        uint8_t on  :1,
+                ccw :1,
+				dynamic;
+    };
 } spindle_state_t;
 
 // this is defined in cpu_map.h which no longer used
@@ -39,10 +39,12 @@ typedef enum {
 // Disables the spindle and sets PWM output to zero when PWM variable spindle speed is enabled.
 // Called by various main program and ISR routines. Keep routine small, fast, and efficient.
 // Called by spindle_init(), spindle_set_speed(), spindle_set_state(), and mc_reset().
-#define spindle_stop() hal.spindle_set_status(0, 0.0f)
+#define spindle_stop() hal.spindle_set_status((spindle_state_t){0}, 0.0f, 0)
 
 #define spindle_set_speed(s) hal.spindle_set_speed(s)
-#define spindle_compute_pwm_value(s) hal.spindle_compute_pwm_value(s)
+#define spindle_compute_pwm_value(s, o) hal.spindle_compute_pwm_value(s, o)
+
+void spindle_set_override (uint8_t speed_ovr);
 
 // Called by g-code parser when setting spindle state and requires a buffer sync.
 // Immediately sets spindle running state with direction and spindle rpm via PWM, if enabled.
@@ -50,10 +52,10 @@ typedef enum {
 #ifdef VARIABLE_SPINDLE
 
   // Called by g-code parser when setting spindle state and requires a buffer sync.
-  void spindle_sync(uint8_t state, float rpm);
+  void spindle_sync(spindle_state_t state, float rpm);
 
   // Sets spindle running state with direction, enable, and spindle PWM.
-  void spindle_set_state(uint8_t state, float rpm);
+  void spindle_set_state(spindle_state_t state, float rpm);
 
 #else
 

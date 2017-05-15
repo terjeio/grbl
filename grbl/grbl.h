@@ -23,7 +23,7 @@
 
 // Grbl versioning system
 #define GRBL_VERSION "1.1f"
-#define GRBL_VERSION_BUILD "20170131"
+#define GRBL_VERSION_BUILD "20170422"
 
 // Define standard libraries used by Grbl.
 #include <math.h>
@@ -68,10 +68,6 @@
 
 #if defined(USE_SPINDLE_DIR_AS_ENABLE_PIN) && !defined(VARIABLE_SPINDLE)
   #error "USE_SPINDLE_DIR_AS_ENABLE_PIN may only be used with VARIABLE_SPINDLE enabled"
-#endif
-
-#if defined(USE_SPINDLE_DIR_AS_ENABLE_PIN) && !defined(CPU_MAP_ATMEGA328P)
-  #error "USE_SPINDLE_DIR_AS_ENABLE_PIN may only be used with a 328p processor"
 #endif
 
 #if !defined(USE_SPINDLE_DIR_AS_ENABLE_PIN) && defined(SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED)

@@ -324,7 +324,7 @@ void report_gcode_modes ()
     print_uint8_base10(gc_state.modal.distance + 90);
 
     report_util_gcode_modes_G();
-    print_uint8_base10(94 - gc_state.modal.feed_rate);
+    print_uint8_base10(94 - gc_state.modal.feed_mode);
 
     if (gc_state.modal.program_flow) {
         report_util_gcode_modes_M();
@@ -346,37 +346,26 @@ void report_gcode_modes ()
     }
 
     report_util_gcode_modes_M();
-    switch (gc_state.modal.spindle) {
-
-        case SPINDLE_ENABLE_CW:
-            serial_write('3'); break;
-
-        case SPINDLE_ENABLE_CCW:
-            serial_write('4');
-            break;
-
-        case SPINDLE_DISABLE:
-            serial_write('5'); break;
-    }
+    serial_write(gc_state.modal.spindle.on ? (gc_state.modal.spindle.ccw ? '4' : '3') : '5');
 
     report_util_gcode_modes_M();
     #ifdef ENABLE_M7
-    if (gc_state.modal.coolant) { // Note: Multiple coolant states may be active at the same time.
-        if (gc_state.modal.coolant & PL_COND_FLAG_COOLANT_MIST)
+    if (gc_state.modal.coolant.value) { // Note: Multiple coolant states may be active at the same time.
+        if (gc_state.modal.coolant.mist)
             serial_write('7');
-        if (gc_state.modal.coolant & PL_COND_FLAG_COOLANT_FLOOD)
+        if (gc_state.modal.coolant.flood)
             serial_write('8');
     } else
         serial_write('9');
     #else
-    if (gc_state.modal.coolant)
+    if (gc_state.modal.coolant.flood)
         serial_write('8');
     else
         serial_write('9');
     #endif
 
     #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-    if (sys.override_ctrl == OVERRIDE_PARKING_MOTION) {
+    if (sys.override_ctrl == ParkingOverride_Motion) {
         report_util_gcode_modes_M();
         print_uint8_base10(56);
     }
@@ -390,7 +379,7 @@ void report_gcode_modes ()
 
   #ifdef VARIABLE_SPINDLE
     printPgmString(PSTR(" S"));
-    printFloat(gc_state.spindle_speed,N_DECIMAL_RPMVALUE);
+    printFloat(gc_state.spindle_speed, N_DECIMAL_RPMVALUE);
   #endif
 
     report_util_feedback_line_feed();
@@ -619,7 +608,7 @@ void report_realtime_status ()
     printPgmString(PSTR("|FS:"));
     printFloat_RateValue(st_get_realtime_rate());
     serial_write(',');
-    printFloat(sys.spindle_speed,N_DECIMAL_RPMVALUE);
+    printFloat(sys.spindle_speed, N_DECIMAL_RPMVALUE);
    #else
     printPgmString(PSTR("|F:"));
     printFloat_RateValue(st_get_realtime_rate());
@@ -629,7 +618,7 @@ void report_realtime_status ()
   #ifdef REPORT_FIELD_PIN_STATE
     axes_signals_t lim_pin_state = (axes_signals_t)limits_get_state();
     control_signals_t ctrl_pin_state = system_control_get_state();
-    uint8_t prb_pin_state = probe_get_state();
+    bool prb_pin_state = probe_get_state();
 
     if (lim_pin_state.value | ctrl_pin_state.value | prb_pin_state | sys.block_delete_enabled) {
 
@@ -697,21 +686,13 @@ void report_realtime_status ()
 
         spindle_state_t sp_state = spindle_get_state();
         coolant_state_t cl_state = coolant_get_state();
-        if (sp_state != Spindle_Off || cl_state.value) {
+        if (sp_state.on || cl_state.value) {
 
             printPgmString(PSTR("|A:"));
 
-            if (sp_state != Spindle_Off) { // != SPINDLE_STATE_DISABLE
-              #ifdef VARIABLE_SPINDLE
-               #ifdef USE_SPINDLE_DIR_AS_ENABLE_PIN
-                serial_write('S'); // CW
-               #else
-                serial_write(sp_state == Spindle_CW ? 'S' /*CW*/ : 'C' /*CCW*/);
-               #endif
-              #else
-                serial_write(sp_state == Spindle_CW ? 'S' /*CW*/ : 'C' /*CCW*/);
-              #endif
-            }
+            if (sp_state.on)
+                serial_write(sp_state.ccw ? 'C' : 'S');
+
             if (cl_state.flood)
                 serial_write('F');
           #ifdef ENABLE_M7

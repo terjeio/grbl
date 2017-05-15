@@ -64,6 +64,7 @@ void settings_write_coord_data (uint8_t coord_select, float *coord_data)
 void write_global_settings ()
 {
 	if(hal.eeprom.type != EEPROM_None) {
+	    settings.version = SETTINGS_VERSION;
 		eeprom_put_char(0, SETTINGS_VERSION);
 		memcpy_to_eeprom_with_checksum(EEPROM_ADDR_GLOBAL, (char*)&settings, sizeof(settings_t));
       #ifdef EMULATE_EEPROM

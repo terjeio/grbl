@@ -104,8 +104,6 @@ void printInteger (int32_t n)
 // Convert float to string by immediately converting to a long integer, which contains
 // more digits than a float. Number of decimal places, which are tracked by a counter,
 // may be set by the user. The integer is then efficiently converted to a string.
-// NOTE: AVR '%' and '/' integer operations are very efficient. Bitshifting speed-up
-// techniques are actually just slightly slower. Found this out the hard way.
 void printFloat (float n, uint8_t decimal_places)
 {
     if (n < 0.0f) {

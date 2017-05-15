@@ -21,7 +21,7 @@
 #ifndef system_h
 #define system_h
 
-#include "grbl.h"
+#include "gcode.h"
 
 // Define system executor bit map. Used internally by realtime protocol as realtime command flags,
 // which notifies the main program to execute the specified realtime command asynchronously.
@@ -50,48 +50,6 @@
 #define STATE_JOG           bit(5) // Jogging mode.
 #define STATE_SAFETY_DOOR   bit(6) // Safety door is ajar. Feed holds and de-energizes system.
 #define STATE_SLEEP         bit(7) // Sleep state.
-
-// Define Grbl status codes. Valid values (0-255)
-typedef enum {
-    Status_OK = 0,
-    Status_ExpectedCommandLetter = 1,
-    Status_BadNumberFormat = 2,
-    Status_InvalidStatement = 3,
-    Status_NegativeValue = 4,
-    Status_SettingDisabled = 5,
-    Status_SettingStepPulseMin = 6,
-    Status_SettingReadFail = 7,
-    Status_IdleError = 8,
-    Status_SystemGClock = 9,
-    Status_SoftLimitError = 10,
-    Status_Overflow = 11,
-    Status_MaxStepRateExceeded = 12,
-    Status_CheckDoor = 13,
-    Status_LineLengthExceeded = 14,
-    Status_TravelExceeded = 15,
-    Status_InvalidJogCommand = 16,
-    Status_SettingDisabledLaser = 17,
-
-    Status_GcodeUnsupportedCommand = 20,
-    Status_GcodeModalGroupViolation = 21,
-    Status_GcodeUndefinedFeedRate = 22,
-    Status_GcodeCommandValueNotInteger = 23,
-    Status_GcodeAxisCommandConflict = 24,
-    Status_GcodeWordRepeated = 25,
-    Status_GcodeNoAxisWords = 26,
-    Status_GcodeInvalidLineNumber = 27,
-    Status_GcodeValueWordMissing = 28,
-    Status_GcodeUnsupportedCoordSys = 29,
-    Status_GcodeG53InvalidMotionMode = 30,
-    Status_GcodeAxisWordsExist = 31,
-    Status_GcodeNoAxisWordsInPlane = 32,
-    Status_GcodeInvalidTarget = 33,
-    Status_GcodeArcRadiusError = 34,
-    Status_GcodeNoOffsetsInPlane = 35,
-    Status_GcodeUnusedWords = 36,
-    Status_GcodeG43DynamicAxisError = 37,
-    Status_GcodeMaxValueExceeded = 38
-} status_code_t;
 
 // Define Grbl feedback message codes. Valid values (0-255).
 typedef enum {
@@ -139,7 +97,7 @@ typedef union {
         uint8_t reset       :1,
                 feed_hold   :1,
                 cycle_start :1,
-                safety_door :1;
+                safety_door_ajar :1;
     };
 } control_signals_t;
 
@@ -186,7 +144,7 @@ typedef struct {
     uint8_t report_ovr_counter;         // Tracks when to add override data to status reports.
     uint8_t report_wco_counter;         // Tracks when to add work coordinate offset data to status reports.
   #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-    uint8_t override_ctrl;              // Tracks override control states.
+    parking_override_t override_ctrl;   // Tracks override control states.
   #endif
   #ifdef VARIABLE_SPINDLE
     float spindle_speed;
@@ -205,9 +163,6 @@ extern volatile uint8_t sys_rt_exec_alarm;   // Global realtimeate val executor 
 
 // Returns bitfield of control pin states, organized by CONTROL_PIN_INDEX. (1=triggered, 0=not triggered).
 #define system_control_get_state() hal.system_control_get_state()
-
-// Returns if safety door is open or closed, based on pin state.
-bool system_check_safety_door_ajar();
 
 // Executes an internal system command, defined as a string starting with a '$'
 status_code_t system_execute_line(char *line);

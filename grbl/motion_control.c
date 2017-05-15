@@ -64,7 +64,7 @@ void mc_line(float *target, plan_line_data_t *pl_data)
         }
 
         // Plan and queue motion into planner buffer
-        // uint8_t plan_status; // Not used in normal operation.
+        // bool plan_status; // Not used in normal operation.
         plan_buffer_line(target, pl_data);
     }
 
@@ -94,28 +94,29 @@ void mc_arc (float *target, plan_line_data_t *pl_data, float *position, float *o
     if (is_clockwise_arc) { // Correct atan2 output per direction
         if (angular_travel >= -ARC_ANGULAR_TRAVEL_EPSILON)
             angular_travel -= 2.0f * M_PI;
-        else if (angular_travel <= ARC_ANGULAR_TRAVEL_EPSILON)
-            angular_travel += 2.0f * M_PI;
+    } else {
+    	if (angular_travel <= ARC_ANGULAR_TRAVEL_EPSILON)
+    		angular_travel += 2.0f * M_PI;
     }
 
     // NOTE: Segment end points are on the arc, which can lead to the arc diameter being smaller by up to
     // (2x) settings.arc_tolerance. For 99% of users, this is just fine. If a different arc segment fit
     // is desired, i.e. least-squares, midpoint on arc, just change the mm_per_arc_segment calculation.
     // For the intended uses of Grbl, this value shouldn't exceed 2000 for the strictest of cases.
-    uint16_t segments = (uint16_t)floorf(fabs(0.5f * angular_travel * radius) / sqrtf(settings.arc_tolerance*(2.0f * radius - settings.arc_tolerance)));
+    uint16_t segments = (uint16_t)floorf(fabsf(0.5f * angular_travel * radius) / sqrtf(settings.arc_tolerance * (2.0f * radius - settings.arc_tolerance)));
 
     if (segments) {
 
         // Multiply inverse feed_rate to compensate for the fact that this movement is approximated
         // by a number of discrete segments. The inverse feed_rate should be correct for the sum of
         // all segments.
-        if (pl_data->condition & PL_COND_FLAG_INVERSE_TIME) {
+        if (pl_data->condition.inverse_time) {
             pl_data->feed_rate *= segments;
-            bit_false(pl_data->condition, PL_COND_FLAG_INVERSE_TIME); // Force as feed absolute mode over arc segments.
+            pl_data->condition.inverse_time = false; // Force as feed absolute mode over arc segments.
         }
 
         float theta_per_segment = angular_travel/segments;
-        float linear_per_segment = (target[axis_linear] - position[axis_linear])/segments;
+        float linear_per_segment = (target[axis_linear] - position[axis_linear]) / segments;
 
     /* Vector rotation by transformation matrix: r is the original vector, r_T is the rotated vector,
        and phi is the angle of rotation. Solution approach by Jens Geisler.
@@ -144,8 +145,8 @@ void mc_arc (float *target, plan_line_data_t *pl_data, float *position, float *o
     */
 
         // Computes: cos_T = 1 - theta_per_segment^2/2, sin_T = theta_per_segment - theta_per_segment^3/6) in ~52usec
-        float cos_T = 2.0f - theta_per_segment*theta_per_segment;
-        float sin_T = theta_per_segment*0.16666667f*(cos_T + 4.0f);
+        float cos_T = 2.0f - theta_per_segment * theta_per_segment;
+        float sin_T = theta_per_segment * 0.16666667f * (cos_T + 4.0f);
         cos_T *= 0.5f;
 
         float sin_Ti;
@@ -154,21 +155,21 @@ void mc_arc (float *target, plan_line_data_t *pl_data, float *position, float *o
         uint16_t i;
         uint8_t count = 0;
 
-        for (i = 1; i<segments; i++) { // Increment (segments-1).
+        for (i = 1; i < segments; i++) { // Increment (segments-1).
 
             if (count < N_ARC_CORRECTION) {
                 // Apply vector rotation matrix. ~40 usec
-                r_axisi = r_axis0*sin_T + r_axis1*cos_T;
-                r_axis0 = r_axis0*cos_T - r_axis1*sin_T;
+                r_axisi = r_axis0 * sin_T + r_axis1 * cos_T;
+                r_axis0 = r_axis0 * cos_T - r_axis1 * sin_T;
                 r_axis1 = r_axisi;
                 count++;
             } else {
                 // Arc correction to radius vector. Computed only every N_ARC_CORRECTION increments. ~375 usec
                 // Compute exact location by applying transformation matrix from initial radius vector(=-offset).
-                cos_Ti = cosf(i*theta_per_segment);
-                sin_Ti = sinf(i*theta_per_segment);
-                r_axis0 = -offset[axis_0]*cos_Ti + offset[axis_1]*sin_Ti;
-                r_axis1 = -offset[axis_0]*sin_Ti - offset[axis_1]*cos_Ti;
+                cos_Ti = cosf(i * theta_per_segment);
+                sin_Ti = sinf(i * theta_per_segment);
+                r_axis0 = -offset[axis_0] * cos_Ti + offset[axis_1] * sin_Ti;
+                r_axis1 = -offset[axis_0] * sin_Ti - offset[axis_1] * cos_Ti;
                 count = 0;
             }
 
@@ -351,7 +352,7 @@ void mc_parking_motion (float *parking_target, plan_line_data_t *pl_data)
 
 
 #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-void mc_override_ctrl_update (uint8_t override_state)
+void mc_override_ctrl_update (parking_override_t override_state)
 {
 // Finish all queued commands before altering override control state
     protocol_buffer_synchronize();

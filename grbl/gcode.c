@@ -64,6 +64,14 @@ void gc_sync_position()
 }
 
 
+// Set dynamic laser power mode to PPI (Pulses Per Inch)
+// When active laser power is controlled by external hardware tracking motion and pulsing the laser
+void gc_set_laser_ppimode (bool on)
+{
+	gc_state.laser_ppi_mode = on;
+}
+
+
 // Executes one line of 0-terminated G-Code. The line is assumed to contain only uppercase
 // characters and signed floating point values (no whitespace). Comments and block delete
 // characters have been removed. In this function, all units and positions are converted and
@@ -99,7 +107,7 @@ status_code_t gc_execute_line(char *line)
         // Set G1 and G94 enforced modes to ensure accurate error checks.
         gc_parser_flags.jog_motion = true;
         gc_block.modal.motion = MotionMode_Linear;
-        gc_block.modal.feed_rate = FeedMode_UnitsPerMin;
+        gc_block.modal.feed_mode = FeedMode_UnitsPerMin;
       #ifdef USE_LINE_NUMBERS
         gc_block.values.n = JOG_LINE_NUMBER; // Initialize default line number reported during jog.
       #endif
@@ -213,7 +221,7 @@ status_code_t gc_execute_line(char *line)
 
                     case 93: case 94:
                         word_bit.group = ModalGroup_G5;
-                        gc_block.modal.feed_rate = (feed_mode_t)(94 - int_value);
+                        gc_block.modal.feed_mode = (feed_mode_t)(94 - int_value);
                         break;
 
                     case 20: case 21:
@@ -300,15 +308,17 @@ status_code_t gc_execute_line(char *line)
                         switch(int_value) {
 
                             case 3:
-                                gc_block.modal.spindle = SPINDLE_ENABLE_CW;
+                                gc_block.modal.spindle.on = true;
+                                gc_block.modal.spindle.ccw = false;
                                 break;
 
                             case 4:
-                                gc_block.modal.spindle = SPINDLE_ENABLE_CCW;
+                                gc_block.modal.spindle.on = true;
+                                gc_block.modal.spindle.ccw = true;
                                 break;
 
                             case 5:
-                                gc_block.modal.spindle = SPINDLE_DISABLE;
+                                gc_block.modal.spindle.value = 0;
                                 break;
                         }
                         break;
@@ -323,16 +333,16 @@ status_code_t gc_execute_line(char *line)
 
                         #ifdef ENABLE_M7
                             case 7:
-                                gc_block.modal.coolant = COOLANT_MIST_ENABLE;
+                                gc_block.modal.coolant.mist = true;
                                 break;
                         #endif
 
                             case 8:
-                                gc_block.modal.coolant = COOLANT_FLOOD_ENABLE;
+                                gc_block.modal.coolant.flood = true;
                                 break;
 
                             case 9:
-                                gc_block.modal.coolant = COOLANT_DISABLE;
+                                gc_block.modal.coolant.value = 0;
                                 break;
                         }
                         break;
@@ -534,7 +544,7 @@ status_code_t gc_execute_line(char *line)
         if (gc_block.modal.units == UnitsMode_Inches)
             gc_block.values.f *= MM_PER_INCH;
 
-    } else if (gc_block.modal.feed_rate == FeedMode_InverseTime) { // = G93
+    } else if (gc_block.modal.feed_mode == FeedMode_InverseTime) { // = G93
       // NOTE: G38 can also operate in inverse time, but is undefined as an error. Missing F word check added here.
       if (axis_command == AxisCommand_MotionMode) {
         if ((gc_block.modal.motion != MotionMode_None) && (gc_block.modal.motion != MotionMode_Seek)) {
@@ -554,7 +564,7 @@ status_code_t gc_execute_line(char *line)
       // value in the block. If no F word is passed with a motion command that requires a feed rate, this will error
       // out in the motion modes error-checking. However, if no F word is passed with NO motion command that requires
       // a feed rate, we simply move on and the state feed rate value gets updated to zero and remains undefined.
-    } else if (gc_state.modal.feed_rate == FeedMode_UnitsPerMin) { // Last state is also G94
+    } else if (gc_state.modal.feed_mode == FeedMode_UnitsPerMin) { // Last state is also G94
           // G94 - In units per mm mode: If F word passed, ensure value is in mm/min, otherwise push last state value.
         if (bit_isfalse(value_words, bit(Word_F)))
             gc_block.values.f = gc_state.feed_rate; // Push last state feed rate
@@ -1060,7 +1070,8 @@ status_code_t gc_execute_line(char *line)
 
         // Initialize planner data to current spindle and coolant modal state.
         pl_data->spindle_speed = gc_state.spindle_speed;
-        plan_data.condition = (gc_state.modal.spindle | gc_state.modal.coolant);
+        plan_data.condition.spindle = gc_state.modal.spindle;
+        plan_data.condition.coolant = gc_state.modal.coolant;
 
         if ((status_code_t)(int_value = (uint8_t)jog_execute(&plan_data, &gc_block)) == Status_OK)
             memcpy(gc_state.position, gc_block.values.xyz, sizeof(gc_block.values.xyz));
@@ -1079,7 +1090,7 @@ status_code_t gc_execute_line(char *line)
         // TODO: Check sync conditions for M3 enabled motions that don't enter the planner. (zero length).
         if (axis_words && (axis_command == AxisCommand_MotionMode))
             gc_parser_flags.laser_is_motion = true;
-        else if (gc_state.modal.spindle == SPINDLE_ENABLE_CW) {
+        else if (gc_state.modal.spindle.on && !gc_state.modal.spindle.ccw) {
             // M3 constant power laser requires planner syncs to update the laser when changing between
             // a G1/2/3 motion mode state and vice versa when there is no motion in the line.
             if ((gc_state.modal.motion == MotionMode_Linear) || (gc_state.modal.motion == MotionMode_CwArc) || (gc_state.modal.motion == MotionMode_CcwArc)) {
@@ -1088,6 +1099,9 @@ status_code_t gc_execute_line(char *line)
             } else if (!gc_parser_flags.laser_disable) // When changing to a G1 motion mode without axis words from a non-G1/2/3 motion mode.
                 gc_parser_flags.laser_force_sync = true;;
         }
+
+        gc_state.modal.spindle.dynamic = gc_state.modal.spindle.ccw && !gc_parser_flags.laser_disable && !gc_state.laser_ppi_mode;
+
     }
 
     // [0. Non-specific/common error-checks and miscellaneous setup]:
@@ -1100,9 +1114,9 @@ status_code_t gc_execute_line(char *line)
     // [1. Comments feedback ]:  NOT SUPPORTED
 
     // [2. Set feed rate mode ]:
-    gc_state.modal.feed_rate = gc_block.modal.feed_rate;
-    if (gc_state.modal.feed_rate)
-        pl_data->condition |= PL_COND_FLAG_INVERSE_TIME; // Set condition flag for planner use.
+    gc_state.modal.feed_mode = gc_block.modal.feed_mode;
+    if (gc_state.modal.feed_mode == FeedMode_InverseTime)
+        pl_data->condition.inverse_time = true; // Set condition flag for planner use.
 
     // [3. Set feed rate ]:
     gc_state.feed_rate = gc_block.values.f; // Always copy this value. See feed rate error-checking.
@@ -1110,7 +1124,7 @@ status_code_t gc_execute_line(char *line)
 
     // [4. Set spindle speed ]:
     if ((gc_state.spindle_speed != gc_block.values.s) || gc_parser_flags.laser_force_sync) {
-        if (gc_state.modal.spindle != SPINDLE_DISABLE) {
+        if (gc_state.modal.spindle.on) {
           #ifdef VARIABLE_SPINDLE
             if (!gc_parser_flags.laser_is_motion)
                 spindle_sync(gc_state.modal.spindle, gc_parser_flags.laser_disable ? 0.0f : gc_block.values.s);
@@ -1132,7 +1146,7 @@ status_code_t gc_execute_line(char *line)
     // [6. Change tool ]: NOT SUPPORTED
 
     // [7. Spindle control ]:
-    if (gc_state.modal.spindle != gc_block.modal.spindle) {
+    if (gc_state.modal.spindle.value != gc_block.modal.spindle.value) {
         // Update spindle control and apply spindle speed when enabling it in this block.
         // NOTE: All spindle state changes are synced, even in laser mode. Also, pl_data,
         // rather than gc_state, is used to manage laser state for non-laser motions.
@@ -1140,20 +1154,17 @@ status_code_t gc_execute_line(char *line)
         gc_state.modal.spindle = gc_block.modal.spindle;
     }
 
-    pl_data->condition |= gc_state.modal.spindle; // Set condition flag for planner use.
+    pl_data->condition.spindle = gc_state.modal.spindle; // Set condition flag for planner use.
 
     // [8. Coolant control ]:
-    if (gc_state.modal.coolant != gc_block.modal.coolant) {
+    if (gc_state.modal.coolant.value != gc_block.modal.coolant.value) {
     // NOTE: Coolant M-codes are modal. Only one command per line is allowed. But, multiple states
     // can exist at the same time, while coolant disable clears all states.
         coolant_sync(gc_block.modal.coolant);
-        if (gc_block.modal.coolant == COOLANT_DISABLE)
-            gc_state.modal.coolant = COOLANT_DISABLE;
-        else
-            gc_state.modal.coolant |= gc_block.modal.coolant;
+        gc_state.modal.coolant = gc_block.modal.coolant;
     }
 
-    pl_data->condition |= gc_state.modal.coolant; // Set condition flag for planner use.
+    pl_data->condition.coolant = gc_state.modal.coolant; // Set condition flag for planner use.
 
     // [9. Override control ]: NOT SUPPORTED. Always enabled. Except for a Grbl-only parking control.
   #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
@@ -1222,7 +1233,7 @@ status_code_t gc_execute_line(char *line)
         case NonModal_GoHome_1:
             // Move to intermediate position before going home. Obeys current coordinate system and offsets
             // and absolute and incremental modes.
-            pl_data->condition |= PL_COND_FLAG_RAPID_MOTION; // Set rapid motion condition flag.
+            pl_data->condition.rapid_motion = true; // Set rapid motion condition flag.
             if (axis_command)
                 mc_line(gc_block.values.xyz, pl_data);
             mc_line(gc_block.values.coord_data, pl_data);
@@ -1262,16 +1273,16 @@ status_code_t gc_execute_line(char *line)
             if (gc_state.modal.motion == MotionMode_Linear)
                 mc_line(gc_block.values.xyz, pl_data);
             else if (gc_state.modal.motion == MotionMode_Seek) {
-                pl_data->condition |= PL_COND_FLAG_RAPID_MOTION; // Set rapid motion condition flag.
+                pl_data->condition.rapid_motion = true; // Set rapid motion condition flag.
                 mc_line(gc_block.values.xyz, pl_data);
             } else if ((gc_state.modal.motion == MotionMode_CwArc) || (gc_state.modal.motion == MotionMode_CcwArc)) {
                 mc_arc(gc_block.values.xyz, pl_data, gc_state.position, gc_block.values.ijk, gc_block.values.r,
-                axis_0, axis_1, axis_linear, gc_parser_flags.arc_is_clockwise);
+                        axis_0, axis_1, axis_linear, gc_parser_flags.arc_is_clockwise);
             } else {
                 // NOTE: gc_block.values.xyz is returned from mc_probe_cycle with the updated position value. So
                 // upon a successful probing cycle, the machine position and the returned value should be the same.
               #ifndef ALLOW_FEED_OVERRIDE_DURING_PROBE_CYCLES
-                pl_data->condition |= PL_COND_FLAG_NO_FEED_OVERRIDE;
+                pl_data->condition.no_feed_override = true;
               #endif
                 gc_update_pos = (pos_update_t)mc_probe_cycle(gc_block.values.xyz, pl_data, gc_parser_flags);
             }
@@ -1308,11 +1319,13 @@ status_code_t gc_execute_line(char *line)
             gc_state.modal.motion = MotionMode_Linear;
             gc_state.modal.plane_select = PlaneSelect_XY;
             gc_state.modal.distance = DistanceMode_Absolute;
-            gc_state.modal.feed_rate = FeedMode_UnitsPerMin;
+            gc_state.modal.feed_mode = FeedMode_UnitsPerMin;
             // gc_state.modal.cutter_comp = CUTTER_COMP_DISABLE; // Not supported.
             gc_state.modal.coord_select = 0; // G54
-            gc_state.modal.spindle = SPINDLE_DISABLE;
-            gc_state.modal.coolant = COOLANT_DISABLE;
+            gc_state.modal.spindle.on = false;
+            gc_state.modal.spindle.ccw = false;
+            gc_state.modal.coolant.flood = false;
+            gc_state.modal.coolant.mist = false;
           #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
            #ifdef DEACTIVATE_PARKING_UPON_INIT
             gc_state.modal.override = ParkingOverride_Disabled;
@@ -1332,8 +1345,8 @@ status_code_t gc_execute_line(char *line)
                 if (!(settings_read_coord_data(gc_state.modal.coord_select, gc_state.coord_system)))
                     FAIL(Status_SettingReadFail);
                 system_flag_wco_change(); // Set to refresh immediately just in case something altered.
-                spindle_set_state(SPINDLE_DISABLE,0.0f);
-                coolant_set_state(COOLANT_DISABLE);
+                spindle_stop();
+                coolant_stop();
             }
             report_feedback_message(Message_ProgramEnd);
         }
@@ -1345,7 +1358,7 @@ status_code_t gc_execute_line(char *line)
         if(gc_block.user_defined_mcode_sync)
             protocol_buffer_synchronize(); // Ensure user defined mcode is executed when specified in program.
 
-        hal.userdefined_mcode_execute(&gc_block);
+        hal.userdefined_mcode_execute(sys.state, &gc_block);
 
     }
 

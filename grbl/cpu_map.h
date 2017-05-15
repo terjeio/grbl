@@ -20,7 +20,7 @@
 
 /* The cpu_map.h files serve as a central pin mapping selection file for different
    processor types or alternative pin layouts. This version of Grbl officially supports
-   only the Arduino Mega328p. */
+   only ARM MCUs. It is not suitable for 8- or 16-bit MCUs */
 
 
 #ifndef cpu_map_h

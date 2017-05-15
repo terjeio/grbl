@@ -229,7 +229,7 @@ void st_go_idle ()
    the venerable Bresenham line algorithm to manage and exactly synchronize multi-axis moves.
    Unlike the popular DDA algorithm, the Bresenham algorithm is not susceptible to numerical
    round-off errors and only requires fast integer counters, meaning low computational overhead
-   and maximizing the Arduino's capabilities. However, the downside of the Bresenham algorithm
+   and maximizing the microcontrollers capabilities. However, the downside of the Bresenham algorithm
    is, for certain multi-axis motions, the non-dominant axes may suffer from un-smooth step
    pulse trains, or aliasing, which can lead to strange audible noises or shaking. This is
    particularly noticeable or may cause motion issues at low step frequencies (0-5kHz), but
@@ -562,7 +562,7 @@ void st_prep_buffer()
               #ifdef VARIABLE_SPINDLE
                 // Setup laser mode variables. PWM rate adjusted motions will always complete a motion with the
                 // spindle off.
-                if ((st_prep_block->is_pwm_rate_adjusted = (settings.flags.laser_mode && pl_block->condition & PL_COND_FLAG_SPINDLE_CCW)))
+                if ((st_prep_block->is_pwm_rate_adjusted = pl_block->condition.spindle.dynamic))
                     // Pre-compute inverse programmed rate to speed up PWM updating per step segment.
                     prep.inv_rate = 1.0f; //1.0/pl_block->programmed_rate; TODO: add config for PPI mode
               #endif
@@ -783,13 +783,13 @@ void st_prep_buffer()
         */
 
         if (st_prep_block->is_pwm_rate_adjusted || sys.step_control.update_spindle_pwm) {
-            if (pl_block->condition & PL_COND_FLAGS_SPINDLE) {
+            if (pl_block->condition.spindle.on) {
                 // NOTE: Feed and rapid overrides are independent of PWM value and do not alter laser power/rate.
                 // If current_speed is zero, then may need to be rpm_min*(100/MAX_SPINDLE_SPEED_OVERRIDE)
                 // but this would be instantaneous only and during a motion. May not matter at all.
                 prep.current_spindle_pwm = spindle_compute_pwm_value(st_prep_block->is_pwm_rate_adjusted
                                                                       ? pl_block->spindle_speed * prep.current_speed * prep.inv_rate
-                                                                      : pl_block->spindle_speed);
+                                                                      : pl_block->spindle_speed, sys.spindle_speed_ovr);
             } else {
                 sys.spindle_speed = 0.0f;
                 prep.current_spindle_pwm = SPINDLE_PWM_OFF_VALUE;

@@ -138,23 +138,23 @@ driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
     settings.limit_invert_mask = INVERT_LIMIT_PIN_MASK;
 #endif
 
-	if(!driver_ok) {
-	    hal.serial_write_string("Grbl: incompatible driver\r\n");
-	    while(true);
-	}
+    driver_ok = driver_ok && hal.driver_setup();
 
-	hal.driver_setup();
+    if(!driver_ok) {
+        hal.serial_write_string("Grbl: incompatible driver\r\n");
+        while(true);
+    }
 
-	if(hal.get_position)
-	    hal.get_position(&sys_position); // TODO:  restore on abort when returns true?
+    if(hal.get_position)
+        hal.get_position(&sys_position); // TODO:  restore on abort when returns true?
 
     // Initialize system state.
-    #ifdef FORCE_INITIALIZATION_ALARM
+  #ifdef FORCE_INITIALIZATION_ALARM
       // Force Grbl into an ALARM state upon a power-cycle or hard reset.
-      sys.state = STATE_ALARM;
-    #else
-      sys.state = STATE_IDLE;
-    #endif
+    sys.state = STATE_ALARM;
+  #else
+    sys.state = STATE_IDLE;
+  #endif
 
     // Check for power-up and set system alarm if homing is enabled to force homing cycle
     // by setting Grbl's alarm state. Alarm locks out all g-code commands, including the
@@ -163,44 +163,50 @@ driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
     // NOTE: The startup script will run after successful completion of the homing cycle, but
     // not after disabling the alarm locks. Prevents motion startup blocks from crashing into
     // things uncontrollably. Very bad.
-    #ifdef HOMING_INIT_LOCK
-      if (settings.flags.homing_enable) { sys.state = STATE_ALARM; }
-    #endif
+  #ifdef HOMING_INIT_LOCK
+    if (settings.flags.homing_enable)
+        sys.state = STATE_ALARM;
+  #endif
 
     // Grbl initialization loop upon power-up or a system abort. For the latter, all processes
     // will return to this loop to be cleanly re-initialized.
     while(looping) {
 
-      // Reset system variables.
-      uint8_t prior_state = sys.state;
-      memset(&sys, 0, sizeof(system_t)); // Clear system struct variable.
-      sys.state = prior_state;
-      sys.f_override = DEFAULT_FEED_OVERRIDE;  // Set to 100%
-      sys.r_override = DEFAULT_RAPID_OVERRIDE; // Set to 100%
-      sys.spindle_speed_ovr = DEFAULT_SPINDLE_SPEED_OVERRIDE; // Set to 100%
-      memset(sys_probe_position,0,sizeof(sys_probe_position)); // Clear probe position.
-      sys_probe_state = 0;
-      sys_rt_exec_state = 0;
-      sys_rt_exec_alarm = 0;
-      flush_override_buffers();
+    	if(sys.abort)
+            sys.state = STATE_ALARM;
 
-      // Reset Grbl primary systems.
-      serial_reset_read_buffer(); // Clear serial read buffer
-      gc_init(); // Set g-code parser to default state
-      limits_init();
-      plan_reset(); // Clear block buffer and planner variables
-      st_reset(); // Clear stepper subsystem variables.
+		// Reset system variables.
+		uint8_t prior_state = sys.state;
+		memset(&sys, 0, sizeof(system_t)); // Clear system struct variable.
+		sys.state = prior_state;
+		sys.f_override = DEFAULT_FEED_OVERRIDE;  // Set to 100%
+		sys.r_override = DEFAULT_RAPID_OVERRIDE; // Set to 100%
+		sys.spindle_speed_ovr = DEFAULT_SPINDLE_SPEED_OVERRIDE; // Set to 100%
 
-      // Sync cleared gcode and planner positions to current system position.
-      plan_sync_position();
-      gc_sync_position();
+		memset(sys_probe_position, 0, sizeof(sys_probe_position)); // Clear probe position.
+		sys_probe_state = 0;
+		sys_rt_exec_state = 0;
+		sys_rt_exec_alarm = 0;
 
-      // Print welcome message. Indicates an initialization has occured at power-up or with a reset.
-      report_init_message();
+		flush_override_buffers();
 
-      // Start Grbl main loop. Processes program inputs and executes them.
-      if(!(looping = protocol_main_loop()))
-          looping = hal.driver_release == 0 || hal.driver_release();
+		// Reset Grbl primary systems.
+		serial_reset_read_buffer(); // Clear serial read buffer
+		gc_init(); // Set g-code parser to default state
+		limits_init();
+		plan_reset(); // Clear block buffer and planner variables
+		st_reset(); // Clear stepper subsystem variables.
+
+		// Sync cleared gcode and planner positions to current system position.
+		plan_sync_position();
+		gc_sync_position();
+
+		// Print welcome message. Indicates an initialization has occured at power-up or with a reset.
+		report_init_message();
+
+		// Start Grbl main loop. Processes program inputs and executes them.
+		if(!(looping = protocol_main_loop()))
+			looping = hal.driver_release == 0 || hal.driver_release();
 
     }
 

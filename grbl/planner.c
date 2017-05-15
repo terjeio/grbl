@@ -116,8 +116,8 @@ inline static uint8_t plan_prev_block_index (uint8_t block_index)
   motion(s) distance per block to a desired tolerance. The more combined distance the planner has to use,
   the faster it can go. (3) Maximize the planner buffer size. This also will increase the combined distance
   for the planner to compute over. It also increases the number of computations the planner has to perform
-  to compute an optimal plan, so select carefully. The Arduino 328p memory is already maxed out, but future
-  ARM versions should have enough memory and speed for look-ahead blocks numbering up to a hundred or more.
+  to compute an optimal plan, so select carefully. ARM versions should have enough memory and speed for
+  look-ahead blocks numbering up to a hundred or more.
 
 */
 static void planner_recalculate ()
@@ -257,10 +257,10 @@ float plan_compute_profile_nominal_speed (plan_block_t *block)
 {
     float nominal_speed = block->programmed_rate;
 
-    if (block->condition & PL_COND_FLAG_RAPID_MOTION)
+    if (block->condition.rapid_motion)
         nominal_speed *= (0.01f * sys.r_override);
     else {
-        if (!(block->condition & PL_COND_FLAG_NO_FEED_OVERRIDE))
+        if (!block->condition.no_feed_override)
             nominal_speed *= (0.01f * sys.f_override);
         if (nominal_speed > block->rapid_rate)
             nominal_speed = block->rapid_rate;
@@ -332,7 +332,7 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
     // Compute and store initial move distance data.
 
     // Copy position data based on type of motion being planned.
-    if (block->condition & PL_COND_FLAG_SYSTEM_MOTION) {
+    if (block->condition.system_motion) {
    #ifdef COREXY
         position_steps[X_AXIS] = system_convert_corexy_to_x_axis_steps(sys_position);
         position_steps[Y_AXIS] = system_convert_corexy_to_y_axis_steps(sys_position);
@@ -395,16 +395,16 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
     block->rapid_rate = limit_value_by_axis_maximum(settings.max_rate, unit_vec);
 
     // Store programmed rate.
-    if (block->condition & PL_COND_FLAG_RAPID_MOTION)
+    if (block->condition.rapid_motion)
         block->programmed_rate = block->rapid_rate;
     else {
         block->programmed_rate = pl_data->feed_rate;
-        if (block->condition & PL_COND_FLAG_INVERSE_TIME)
+        if (block->condition.inverse_time)
             block->programmed_rate *= block->millimeters;
     }
 
     // TODO: Need to check this method handling zero junction speeds when starting from rest.
-    if ((block_buffer_head == block_buffer_tail) || (block->condition & PL_COND_FLAG_SYSTEM_MOTION)) {
+    if ((block_buffer_head == block_buffer_tail) || (block->condition.system_motion)) {
 
         // Initialize block entry speed as zero. Assume it will be starting from rest. Planner will correct this later.
         // If system motion, the system motion block always is assumed to start from rest and end at a complete stop.
@@ -462,7 +462,7 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
     }
 
     // Block system motion from updating this data to ensure next g-code motion is computed correctly.
-    if (!(block->condition & PL_COND_FLAG_SYSTEM_MOTION)) {
+    if (!block->condition.system_motion) {
         float nominal_speed = plan_compute_profile_nominal_speed(block);
         plan_compute_profile_parameters(block, nominal_speed, pl.previous_nominal_speed);
         pl.previous_nominal_speed = nominal_speed;
@@ -525,4 +525,18 @@ void plan_cycle_reinitialize ()
     st_update_plan_block_parameters();
     block_buffer_planned = block_buffer_tail;
     planner_recalculate();
+}
+
+// Set feed overrides
+void plan_feed_override (uint8_t feed_override, uint8_t rapid_override)
+{
+	feed_override = max(min(feed_override, MAX_FEED_RATE_OVERRIDE), MIN_FEED_RATE_OVERRIDE);
+
+	if ((feed_override != sys.f_override) || (rapid_override != sys.r_override)) {
+	  sys.f_override = feed_override;
+	  sys.r_override = rapid_override;
+	  sys.report_ovr_counter = 0; // Set to report change immediately
+	  plan_update_velocity_profile_parameters();
+	  plan_cycle_reinitialize();
+	}
 }

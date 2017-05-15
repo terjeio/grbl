@@ -34,13 +34,13 @@
 // limit switch can cause a lot of problems, like false readings and multiple interrupt calls.
 // If a switch is triggered at all, something bad has happened and treat it as such, regardless
 // if a limit switch is being disengaged. It's impossible to reliably tell the state of a
-// bouncing pin because the Arduino microcontroller does not retain any state information when
+// bouncing pin because the microcontroller does not retain any state information when
 // detecting a pin change. If we poll the pins in the ISR, you can miss the correct reading if the
 // switch is bouncing.
 // NOTE: Do not attach an e-stop to the limit pins, because this interrupt is disabled during
 // homing cycles and will not respond correctly. Upon user request or need, there may be a
 // special pinout for an e-stop, but it is generally recommended to just directly connect
-// your e-stop switch to the Arduino reset pin, since it is the most correct way to do this.
+// your e-stop switch to the microcontroller reset pin, since it is the most correct way to do this.
 
 void limit_interrupt_handler (axes_signals_t state) // DEFAULT: Limit pin change interrupt process.
 {
@@ -91,7 +91,8 @@ void limits_go_home (uint8_t cycle_mask)
     uint8_t limit_state, axislock, n_active_axis;
 
     memset(pl_data,0,sizeof(plan_line_data_t));
-    pl_data->condition = (PL_COND_FLAG_SYSTEM_MOTION|PL_COND_FLAG_NO_FEED_OVERRIDE);
+    pl_data->condition.system_motion = true;
+    pl_data->condition.no_feed_override = true;
   #ifdef USE_LINE_NUMBERS
     pl_data->line_number = HOMING_CYCLE_LINE_NUMBER;
   #endif

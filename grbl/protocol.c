@@ -73,7 +73,7 @@ bool protocol_main_loop()
     } else {
         // Check if the safety door is open.
         sys.state = STATE_IDLE;
-        if (system_check_safety_door_ajar()) {
+        if (system_control_get_state().safety_door_ajar) {
             bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
             protocol_execute_realtime(); // Enter safety door mode. Should return as IDLE state.
         }
@@ -487,21 +487,14 @@ void protocol_exec_rt_system ()
 
         } while(rt_exec = get_feed_ovr());
 
-        new_f_override = max(min(new_f_override, MAX_FEED_RATE_OVERRIDE), MIN_FEED_RATE_OVERRIDE);
-
-        if ((new_f_override != sys.f_override) || (new_r_override != sys.r_override)) {
-          sys.f_override = new_f_override;
-          sys.r_override = new_r_override;
-          sys.report_ovr_counter = 0; // Set to report change immediately
-          plan_update_velocity_profile_parameters();
-          plan_cycle_reinitialize();
-        }
+        plan_feed_override(new_f_override, new_r_override);
     }
 
     if((rt_exec = get_accessory_ovr())) {
 
         bool spindle_stop = false;
-        uint8_t last_s_override =  sys.spindle_speed_ovr, coolant_state = gc_state.modal.coolant;
+        uint8_t last_s_override = sys.spindle_speed_ovr;
+        coolant_state_t coolant_state = gc_state.modal.coolant;
 
         do {
 
@@ -534,20 +527,14 @@ void protocol_exec_rt_system ()
             #ifdef ENABLE_M7
               case CMD_COOLANT_MIST_OVR_TOGGLE:
                   if ((sys.state == STATE_IDLE) || (sys.state & (STATE_CYCLE | STATE_HOLD))) {
-                      if (bit_istrue(coolant_state, COOLANT_MIST_ENABLE))
-                          bit_false(coolant_state, COOLANT_MIST_ENABLE);
-                      else
-                          bit_true(coolant_state, COOLANT_MIST_ENABLE);
+                      coolant_state.mist = !coolant_state.mist;
                   }
                   break;
             #endif
 
               case CMD_COOLANT_FLOOD_OVR_TOGGLE:
                   if ((sys.state == STATE_IDLE) || (sys.state & (STATE_CYCLE | STATE_HOLD))) {
-                      if (bit_istrue(coolant_state, COOLANT_FLOOD_ENABLE))
-                          bit_false(coolant_state, COOLANT_FLOOD_ENABLE);
-                      else
-                          bit_true(coolant_state, COOLANT_FLOOD_ENABLE);
+                      coolant_state.flood = !coolant_state.flood;
                   }
                   break;
 
@@ -559,18 +546,11 @@ void protocol_exec_rt_system ()
 
         } while((rt_exec = get_accessory_ovr()));
 
-        // NOTE: Unlike motion overrides, spindle overrides do not require a planner reinitialization.
-        last_s_override = max(min(last_s_override, MAX_SPINDLE_SPEED_OVERRIDE), MIN_SPINDLE_SPEED_OVERRIDE);
-
-        if (last_s_override != sys.spindle_speed_ovr) {
-            sys.step_control.update_spindle_pwm = true;
-            sys.spindle_speed_ovr = last_s_override;
-            sys.report_ovr_counter = 0; // Set to report change immediately
-        }
+        spindle_set_override(last_s_override);
 
       // NOTE: Since coolant state always performs a planner sync whenever it changes, the current
       // run state can be determined by checking the parser state.
-        if(coolant_state != gc_state.modal.coolant) {
+        if(coolant_state.value != gc_state.modal.coolant.value) {
             coolant_set_state(coolant_state); // Report counter set in coolant_set_state().
             gc_state.modal.coolant = coolant_state;
         }
@@ -579,7 +559,7 @@ void protocol_exec_rt_system ()
             // Spindle stop override allowed only while in HOLD state.
             // NOTE: Report counters are set in spindle_set_state() when spindle stop is executed.
                 if (!sys.spindle_stop_ovr.value)
-                sys.spindle_stop_ovr.initiate = true;
+                    sys.spindle_stop_ovr.initiate = true;
             else if (sys.spindle_stop_ovr.enabled)
                 sys.spindle_stop_ovr.restore = true;
         }
@@ -607,19 +587,21 @@ static void protocol_exec_rt_suspend ()
     float retract_waypoint = PARKING_PULLOUT_INCREMENT;
     plan_line_data_t plan_data;
     plan_line_data_t *pl_data = &plan_data;
-    memset(pl_data,0,sizeof(plan_line_data_t));
-    pl_data->condition = (PL_COND_FLAG_SYSTEM_MOTION|PL_COND_FLAG_NO_FEED_OVERRIDE);
+    memset(pl_data, 0, sizeof(plan_line_data_t));
+    pl_data->condition.system_motion = true;
+    pl_data->condition.no_feed_override = true;
    #ifdef USE_LINE_NUMBERS
     pl_data->line_number = PARKING_MOTION_LINE_NUMBER;
    #endif
   #endif
 
     plan_block_t *block = plan_get_current_block();
-    uint8_t restore_condition;
+    planner_cond_t restore_condition;
   #ifdef VARIABLE_SPINDLE
     float restore_spindle_speed;
     if (block == NULL) {
-        restore_condition = (gc_state.modal.spindle | gc_state.modal.coolant);
+        restore_condition.spindle = gc_state.modal.spindle;
+        restore_condition.coolant = gc_state.modal.coolant;
         restore_spindle_speed = gc_state.spindle_speed;
     } else {
         restore_condition = block->condition;
@@ -653,15 +635,15 @@ static void protocol_exec_rt_suspend ()
 
                   #ifndef PARKING_ENABLE
 
-                    spindle_set_state(SPINDLE_DISABLE,0.0f); // De-energize
-                    coolant_set_state(COOLANT_DISABLE);     // De-energize
+                    spindle_stop(); // De-energize
+                    coolant_stop(); // De-energize
 
                   #else
 
                     // Get current position and store restore location and spindle retract waypoint.
                     system_convert_array_steps_to_mpos(parking_target,sys_position);
                     if (!sys.suspend.restart_retract) {
-                        memcpy(restore_target,parking_target,sizeof(parking_target));
+                        memcpy(restore_target, parking_target, sizeof(parking_target));
                         retract_waypoint += restore_target[PARKING_AXIS];
                         retract_waypoint = min(retract_waypoint,PARKING_TARGET);
                     }
@@ -670,25 +652,27 @@ static void protocol_exec_rt_suspend ()
                     // current location not exceeding the parking target location, and laser mode disabled.
                     // NOTE: State is will remain DOOR, until the de-energizing and retract is complete.
                    #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-                    if (settings.flags.homing_enable && (parking_target[PARKING_AXIS] < PARKING_TARGET) && !settings.flags.laser_mode && (sys.override_ctrl == OVERRIDE_PARKING_MOTION)) {
+                    if (settings.flags.homing_enable && (parking_target[PARKING_AXIS] < PARKING_TARGET) && !settings.flags.laser_mode && (sys.override_ctrl == ParkingOverride_Motion)) {
                    #else
-                    if (settings.flags.homing_enable) && (parking_target[PARKING_AXIS] < PARKING_TARGET) && !settings.flags.laser_mode) {
+                    if (settings.flags.homing_enable && (parking_target[PARKING_AXIS] < PARKING_TARGET) && !settings.flags.laser_mode) {
                    #endif
                         // Retract spindle by pullout distance. Ensure retraction motion moves away from
                         // the workpiece and waypoint motion doesn't exceed the parking target location.
                         if (parking_target[PARKING_AXIS] < retract_waypoint) {
                             parking_target[PARKING_AXIS] = retract_waypoint;
                             pl_data->feed_rate = PARKING_PULLOUT_RATE;
-                            pl_data->condition |= (restore_condition & PL_COND_ACCESSORY_MASK); // Retain accessory state
+                            pl_data->condition.coolant = restore_condition.coolant; // Retain coolant state
+                            pl_data->condition.spindle = restore_condition.spindle; // Retain spindle state
                             pl_data->spindle_speed = restore_spindle_speed;
                             mc_parking_motion(parking_target, pl_data);
                         }
 
                         // NOTE: Clear accessory state after retract and after an aborted restore motion.
-                        pl_data->condition = (PL_COND_FLAG_SYSTEM_MOTION|PL_COND_FLAG_NO_FEED_OVERRIDE);
-                        pl_data->spindle_speed = 0.0;
-                        spindle_set_state(SPINDLE_DISABLE,0.0); // De-energize
-                        coolant_set_state(COOLANT_DISABLE); // De-energize
+                        pl_data->condition.coolant.value = 0;
+                        pl_data->condition.spindle.value = 0;
+                        pl_data->spindle_speed = 0.0f;
+                        spindle_stop(); // De-energize
+                        coolant_stop(); // De-energize
 
                         // Execute fast parking retract motion to parking target location.
                         if (parking_target[PARKING_AXIS] < PARKING_TARGET) {
@@ -698,12 +682,10 @@ static void protocol_exec_rt_suspend ()
                         }
 
                     } else {
-
                         // Parking motion not possible. Just disable the spindle and coolant.
                         // NOTE: Laser mode does not start a parking motion to ensure the laser stops immediately.
-                        spindle_set_state(SPINDLE_DISABLE,0.0); // De-energize
-                        coolant_set_state(COOLANT_DISABLE);     // De-energize
-
+                        spindle_stop(); // De-energize
+                        coolant_stop();     // De-energize
                     }
                   #endif
 
@@ -715,8 +697,8 @@ static void protocol_exec_rt_suspend ()
                     if (sys.state == STATE_SLEEP) {
                         report_feedback_message(Message_SleepMode);
                         // Spindle and coolant should already be stopped, but do it again just to be sure.
-                        spindle_set_state(SPINDLE_DISABLE, 0.0f); // De-energize
-                        coolant_set_state(COOLANT_DISABLE); // De-energize
+                        spindle_stop(); // De-energize
+                        coolant_stop(); // De-energize
                         st_go_idle(); // Disable steppers
                         while (!(sys.abort))
                             protocol_exec_rt_system(); // Do nothing until reset.
@@ -724,7 +706,7 @@ static void protocol_exec_rt_suspend ()
                     }
 
                     // Allows resuming from parking/safety door. Actively checks if safety door is closed and ready to resume.
-                    if (sys.state == STATE_SAFETY_DOOR && !system_check_safety_door_ajar())
+                    if (sys.state == STATE_SAFETY_DOOR && !system_control_get_state().safety_door_ajar)
                         sys.suspend.safety_door_ajar = false; // Reset door ajar flag to denote ready to resume.
 
                     // Handles parking restore and safety door resume.
@@ -734,7 +716,7 @@ static void protocol_exec_rt_suspend ()
                         // Execute fast restore motion to the pull-out position. Parking requires homing enabled.
                         // NOTE: State is will remain DOOR, until the de-energizing and retract is complete.
                        #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-                        if (settings.flags.homing_enable && !settings.flags.laser_mode && sys.override_ctrl == OVERRIDE_PARKING_MOTION) {
+                        if (settings.flags.homing_enable && !settings.flags.laser_mode && sys.override_ctrl == ParkingOverride_Motion) {
                        #else
                         if (settings.flags.homing_enable && !settings.flags.laser_mode) {
                        #endif
@@ -749,27 +731,27 @@ static void protocol_exec_rt_suspend ()
 
                         // Delayed Tasks: Restart spindle and coolant, delay to power-up, then resume cycle.
                         // Block if safety door re-opened during prior restore actions.
-                        if (gc_state.modal.spindle != SPINDLE_DISABLE && !sys.suspend.restart_retract) {
+                        if (gc_state.modal.spindle.on && !sys.suspend.restart_retract) {
                             if (settings.flags.laser_mode)
                             // When in laser mode, ignore spindle spin-up delay. Set to turn on laser when cycle starts.
                                 sys.step_control.update_spindle_pwm = true;
                             else {
-                                spindle_set_state(restore_condition & PL_COND_FLAGS_SPINDLE, restore_spindle_speed);
+                                spindle_set_state(restore_condition.spindle, restore_spindle_speed);
                                 delay_sec(SAFETY_DOOR_SPINDLE_DELAY, DelayMode_SysSuspend);
                             }
                         }
 
                         // Block if safety door re-opened during prior restore actions.
-                        if (gc_state.modal.coolant != COOLANT_DISABLE && !sys.suspend.restart_retract) {
+                        if (gc_state.modal.coolant.value && !sys.suspend.restart_retract) {
                             // NOTE: Laser mode will honor this delay. An exhaust system is often controlled by this pin.
-                            coolant_set_state(restore_condition & PL_COND_FLAGS_COOLANT);
+                            coolant_set_state(restore_condition.coolant);
                             delay_sec(SAFETY_DOOR_COOLANT_DELAY, DelayMode_SysSuspend);
                         }
 
                       #ifdef PARKING_ENABLE
                         // Execute slow plunge motion from pull-out position to resume position.
                        #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
-                        if (settings.flags.homing_enable && !settings.flags.laser_mode && sys.override_ctrl == OVERRIDE_PARKING_MOTION) {
+                        if (settings.flags.homing_enable && !settings.flags.laser_mode && sys.override_ctrl == ParkingOverride_Motion) {
                        #else
                         if (settings.flags.homing_enable && !settings.flags.laser_mode) {
                        #endif
@@ -779,7 +761,8 @@ static void protocol_exec_rt_suspend ()
                                 // restore parking motion should logically be valid, either by returning to the
                                 // original position through valid machine space or by not moving at all.
                                 pl_data->feed_rate = PARKING_PULLOUT_RATE;
-                                pl_data->condition |= (restore_condition & PL_COND_ACCESSORY_MASK); // Restore accessory state
+                                pl_data->condition.coolant = restore_condition.coolant;
+                                pl_data->condition.spindle = restore_condition.spindle;
                                 pl_data->spindle_speed = restore_spindle_speed;
                                 mc_parking_motion(restore_target, pl_data);
                             }
@@ -801,18 +784,18 @@ static void protocol_exec_rt_suspend ()
                     // Handles beginning of spindle stop
                     if (sys.spindle_stop_ovr.initiate) {
                         sys.spindle_stop_ovr.value = 0; // Clear stop override state
-                        if (gc_state.modal.spindle != SPINDLE_DISABLE) {
-                            spindle_set_state(SPINDLE_DISABLE, 0.0f); // De-energize
+                        if (gc_state.modal.spindle.on) {
+                            spindle_stop(); // De-energize
                             sys.spindle_stop_ovr.enabled = true; // Set stop override state to enabled, if de-energized.
                         }
                     // Handles restoring of spindle state
                     } else if (sys.spindle_stop_ovr.restore || sys.spindle_stop_ovr.restore_cycle) {
-                        if (gc_state.modal.spindle != SPINDLE_DISABLE) {
+                        if (gc_state.modal.spindle.on) {
                             report_feedback_message(Message_SpindleRestore);
                             if (settings.flags.laser_mode) // When in laser mode, ignore spindle spin-up delay. Set to turn on laser when cycle starts.
                                 sys.step_control.update_spindle_pwm = true;
                             else
-                                spindle_set_state(restore_condition & PL_COND_FLAGS_SPINDLE, restore_spindle_speed);
+                                spindle_set_state(restore_condition.spindle, restore_spindle_speed);
                         }
                         if (sys.spindle_stop_ovr.restore_cycle)
                             system_set_exec_state_flag(EXEC_CYCLE_START);  // Set to resume program.
@@ -821,7 +804,7 @@ static void protocol_exec_rt_suspend ()
                 } else if (sys.step_control.update_spindle_pwm) {
                     // Handles spindle state during hold. NOTE: Spindle speed overrides may be altered during hold state.
                     // NOTE: sys.step_control.update_spindle_pwm is automatically reset upon resume in step generator.
-                    spindle_set_state(restore_condition & PL_COND_FLAGS_SPINDLE, restore_spindle_speed);
+                    spindle_set_state(restore_condition.spindle, restore_spindle_speed);
                     sys.step_control.update_spindle_pwm = false;
                 }
             }

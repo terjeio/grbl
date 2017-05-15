@@ -21,11 +21,6 @@
 #ifndef coolant_control_h
 #define coolant_control_h
 
-//#define COOLANT_NO_SYNC     false
-//#define COOLANT_FORCE_SYNC  true
-
-#define COOLANT_STATE_DISABLE   0  // Must be zero
-
 typedef union {
     uint8_t value;
     struct {
@@ -39,12 +34,12 @@ typedef union {
 // Immediately disables coolant pins.
 // Directly called by coolant_init(), coolant_set_state(), and mc_reset(), which can be at
 // an interrupt-level. No report flag set, but only called by routines that don't need it.
-#define coolant_stop() hal.coolant_set_state(COOLANT_STATE_DISABLE)
+#define coolant_stop() hal.coolant_set_state((coolant_state_t){0})
 
 // Sets the coolant pins according to state specified.
-void coolant_set_state(uint8_t mode);
+void coolant_set_state(coolant_state_t mode);
 
 // G-code parser entry-point for setting coolant states. Checks for and executes additional conditions.
-void coolant_sync(uint8_t mode);
+void coolant_sync(coolant_state_t mode);
 
 #endif

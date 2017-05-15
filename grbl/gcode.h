@@ -22,18 +22,53 @@
 #ifndef gcode_h
 #define gcode_h
 
-#include "system.h"
+#include "coolant_control.h"
+#include "spindle_control.h"
 
-//TODO: untangle triple definition of spindle and coolant modes?
-// Modal Group M7: Spindle control
-#define SPINDLE_DISABLE 0 // M5 (Default: Must be zero)
-#define SPINDLE_ENABLE_CW   PL_COND_FLAG_SPINDLE_CW // M3 (NOTE: Uses planner condition bit flag)
-#define SPINDLE_ENABLE_CCW  PL_COND_FLAG_SPINDLE_CCW // M4 (NOTE: Uses planner condition bit flag)
 
-// Modal Group M8: Coolant control
-#define COOLANT_DISABLE 0 // M9 (Default: Must be zero)
-#define COOLANT_FLOOD_ENABLE  PL_COND_FLAG_COOLANT_FLOOD // M8 (NOTE: Uses planner condition bit flag)
-#define COOLANT_MIST_ENABLE   PL_COND_FLAG_COOLANT_MIST  // M7 (NOTE: Uses planner condition bit flag)
+// Define Grbl status codes. Valid values (0-255)
+typedef enum {
+    Status_OK = 0,
+    Status_ExpectedCommandLetter = 1,
+    Status_BadNumberFormat = 2,
+    Status_InvalidStatement = 3,
+    Status_NegativeValue = 4,
+    Status_SettingDisabled = 5,
+    Status_SettingStepPulseMin = 6,
+    Status_SettingReadFail = 7,
+    Status_IdleError = 8,
+    Status_SystemGClock = 9,
+    Status_SoftLimitError = 10,
+    Status_Overflow = 11,
+    Status_MaxStepRateExceeded = 12,
+    Status_CheckDoor = 13,
+    Status_LineLengthExceeded = 14,
+    Status_TravelExceeded = 15,
+    Status_InvalidJogCommand = 16,
+    Status_SettingDisabledLaser = 17,
+    Status_Reset = 18,
+
+    Status_GcodeUnsupportedCommand = 20,
+    Status_GcodeModalGroupViolation = 21,
+    Status_GcodeUndefinedFeedRate = 22,
+    Status_GcodeCommandValueNotInteger = 23,
+    Status_GcodeAxisCommandConflict = 24,
+    Status_GcodeWordRepeated = 25,
+    Status_GcodeNoAxisWords = 26,
+    Status_GcodeInvalidLineNumber = 27,
+    Status_GcodeValueWordMissing = 28,
+    Status_GcodeUnsupportedCoordSys = 29,
+    Status_GcodeG53InvalidMotionMode = 30,
+    Status_GcodeAxisWordsExist = 31,
+    Status_GcodeNoAxisWordsInPlane = 32,
+    Status_GcodeInvalidTarget = 33,
+    Status_GcodeArcRadiusError = 34,
+    Status_GcodeNoOffsetsInPlane = 35,
+    Status_GcodeUnusedWords = 36,
+    Status_GcodeG43DynamicAxisError = 37,
+    Status_GcodeMaxValueExceeded = 38
+} status_code_t;
+
 
 // Define modal group internal numbers for checking multiple command violations and tracking the
 // type of command that is called in the block. A modal group is a group of g-code commands that are
@@ -85,8 +120,8 @@ typedef union {
 
 // Define command actions for within execution-type modal groups (motion, stopping, non-modal). Used
 // internally by the parser to know which command to execute.
-// NOTE: Some macro values are assigned specific values to make g-code state reporting and parsing
-// compile a litte smaller. Necessary due to being completely out of flash on the 328p. Although not
+// NOTE: Some values are assigned specific values to make g-code state reporting and parsing
+// compile a litte smaller. Although not
 // ideal, just be careful with values that state 'do not alter' and check both report.c and gcode.c
 // to see how they are used, if you need to alter them.
 
@@ -173,16 +208,11 @@ typedef enum {
         ParkingOverride_Disabled = 0,   // G49 (Default: Must be zero)
         ParkingOverride_Motion = 1      // G43.1
     } parking_override_t;
-
-//  #define OVERRIDE_DISABLED  0 // (Default: Must be zero)
-//  #define OVERRIDE_PARKING_MOTION 1 // M56
 #else
     typedef enum {
         ParkingOverride_Disabled = 1,   // Parking disabled.
         ParkingOverride_Motion = 0      // M56 (Default: Must be zero)
     } parking_override_t;
-//  #define OVERRIDE_PARKING_MOTION 0 // M56 (Default: Must be zero)
-//  #define OVERRIDE_DISABLED  1 // Parking disabled.
 #endif
 
 // Modal Group G12: Active work coordinate system
@@ -227,7 +257,7 @@ typedef union {
 // NOTE: When this struct is zeroed, the above defines set the defaults for the system.
 typedef struct {
     motion_mode_t motion;           // {G0,G1,G2,G3,G38.2,G80}
-    feed_mode_t feed_rate;          // {G93,G94}
+    feed_mode_t feed_mode;          // {G93,G94}
     units_mode_t units;             // {G20,G21}
     distance_mode_t distance;       // {G90,G91}
     // uint8_t distance_arc;        // {G91.1} NOTE: Don't track. Only default supported.
@@ -237,8 +267,8 @@ typedef struct {
     uint8_t coord_select;           // {G54,G55,G56,G57,G58,G59}
     // uint8_t control;             // {G61} NOTE: Don't track. Only default supported.
     program_flow_t program_flow;    // {M0,M1,M2,M30}
-    uint8_t coolant;                // {M7,M8,M9}
-    uint8_t spindle;                // {M3,M4,M5}
+    coolant_state_t coolant;        // {M7,M8,M9}
+    spindle_state_t spindle;        // {M3,M4,M5}
     parking_override_t override;    // {M56}
 } gc_modal_t;
 
@@ -271,6 +301,7 @@ typedef struct {
     float tool_length_offset;      // Tracks tool length offset value when enabled.
     int32_t line_number;          // Last line number sent
     uint8_t tool;                 // Tracks tool number. NOT USED.
+    bool laser_ppi_mode;
 } parser_state_t;
 
 extern parser_state_t gc_state;
@@ -293,5 +324,7 @@ status_code_t gc_execute_line(char *line);
 
 // Set g-code parser position. Input in steps.
 void gc_sync_position();
+
+void gc_set_laser_ppimode (bool on);
 
 #endif

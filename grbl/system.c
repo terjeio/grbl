@@ -42,17 +42,6 @@ void control_interrupt_handler (control_signals_t signals)
 }
 
 
-// Returns if safety door is ajar(T) or closed(F), based on pin state.
-bool system_check_safety_door_ajar ()
-{
-  #ifndef ENABLE_SAFETY_DOOR_INPUT_PIN
-    return system_control_get_state().safety_door != 0;
-  #else
-    return false; // Input pin not enabled, so just return that it's closed.
-  #endif
-}
-
-
 // Executes user startup script, if stored.
 void system_execute_startup (char *line)
 {
@@ -80,6 +69,7 @@ status_code_t system_execute_line (char *line)
     uint8_t counter = 1;
     float parameter, value;
     status_code_t retval = Status_OK;
+    control_signals_t control_signals;
 
     switch (line[1]) {
 
@@ -143,9 +133,17 @@ status_code_t system_execute_line (char *line)
             if (line[2] != '\0' )
                 retval = Status_InvalidStatement;
             else if (sys.state == STATE_ALARM) {
-                // Block if safety door is ajar.
-                if (system_check_safety_door_ajar())
+
+            	control_signals = system_control_get_state();
+
+            	// Block if safety door is ajar.
+                if (control_signals.safety_door_ajar)
                     return Status_CheckDoor;
+
+            	// Block if safety reset is active.
+                if(control_signals.reset)
+                    return Status_Reset;
+
                 report_feedback_message(Message_AlarmUnlock);
                 sys.state = STATE_IDLE;
                 // Don't run startup script. Prevents stored moves in startup from causing accidents.
@@ -168,8 +166,15 @@ status_code_t system_execute_line (char *line)
                     if (!settings.flags.homing_enable)
                         return Status_SettingDisabled;
 
-                    if (system_check_safety_door_ajar())
-                        return Status_CheckDoor; // Block if safety door is ajar.
+                    control_signals = system_control_get_state();
+
+                    // Block if safety door is ajar.
+                    if (control_signals.safety_door_ajar)
+                        return Status_CheckDoor;
+
+                	// Block if safety reset is active.
+                    if(control_signals.reset)
+                        return Status_Reset;
 
                     sys.state = STATE_HOMING; // Set system state variable
 

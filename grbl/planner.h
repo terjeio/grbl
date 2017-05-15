@@ -26,25 +26,24 @@
 // The number of linear motions that can be in the plan at any give time
 #ifndef BLOCK_BUFFER_SIZE
   #ifdef USE_LINE_NUMBERS
-    #define BLOCK_BUFFER_SIZE 15
+    #define BLOCK_BUFFER_SIZE 63
   #else
-    #define BLOCK_BUFFER_SIZE 16
+    #define BLOCK_BUFFER_SIZE 64
   #endif
 #endif
 
-// Define planner data condition flags. Used to denote running conditions of a block.
-#define PL_COND_FLAG_RAPID_MOTION      bit(0)
-#define PL_COND_FLAG_SYSTEM_MOTION     bit(1) // Single motion. Circumvents planner state. Used by home/park.
-#define PL_COND_FLAG_NO_FEED_OVERRIDE  bit(2) // Motion does not honor feed override.
-#define PL_COND_FLAG_INVERSE_TIME      bit(3) // Interprets feed rate value as inverse time when set.
-#define PL_COND_FLAG_SPINDLE_CW        bit(4)
-#define PL_COND_FLAG_SPINDLE_CCW       bit(5)
-#define PL_COND_FLAG_COOLANT_FLOOD     bit(6)
-#define PL_COND_FLAG_COOLANT_MIST      bit(7)
-//#define PL_COND_MOTION_MASK    (PL_COND_FLAG_RAPID_MOTION|PL_COND_FLAG_SYSTEM_MOTION|PL_COND_FLAG_NO_FEED_OVERRIDE)
-//#define PL_COND_ACCESSORY_MASK (PL_COND_FLAG_SPINDLE_CW|PL_COND_FLAG_SPINDLE_CCW|PL_COND_FLAG_COOLANT_FLOOD|PL_COND_FLAG_COOLANT_MIST)
-#define PL_COND_FLAGS_COOLANT (PL_COND_FLAG_COOLANT_FLOOD|PL_COND_FLAG_COOLANT_MIST)
-#define PL_COND_FLAGS_SPINDLE (PL_COND_FLAG_SPINDLE_CW|PL_COND_FLAG_SPINDLE_CCW)
+typedef union {
+    uint32_t value;
+    struct {
+        uint8_t rapid_motion     :1,
+                system_motion    :1,
+                no_feed_override :1,
+                inverse_time     :1,
+                unassigned       :4;
+        spindle_state_t spindle;
+        coolant_state_t coolant;
+    };
+} planner_cond_t;
 
 // This struct stores a linear movement of a g-code block motion with its critical "nominal" values
 // are as specified in the source g-code.
@@ -56,7 +55,7 @@ typedef struct {
   axes_signals_t direction_bits;    // The direction bit set for this block (refers to *_DIRECTION_BIT in config.h)
 
   // Block condition data to ensure correct execution depending on states and overrides.
-  uint8_t condition;      // Block bitflag variable defining block run conditions. Copied from pl_line_data.
+  planner_cond_t condition;      // Block bitflag variable defining block run conditions. Copied from pl_line_data.
   #ifdef USE_LINE_NUMBERS
     int32_t line_number;  // Block line number for real-time reporting. Copied from pl_line_data.
   #endif
@@ -86,7 +85,7 @@ typedef struct {
 typedef struct {
   float feed_rate;          // Desired feed rate for line motion. Value is ignored, if rapid motion.
   float spindle_speed;      // Desired spindle speed through line motion.
-  uint8_t condition;        // Bitflag variable to indicate planner conditions. See defines above.
+  planner_cond_t condition; // Bitflag variable to indicate planner conditions. See defines above.
   #ifdef USE_LINE_NUMBERS
     int32_t line_number;    // Desired line number to report when executing.
   #endif
@@ -130,13 +129,13 @@ void plan_sync_position();
 // Reinitialize plan with a partially completed block
 void plan_cycle_reinitialize();
 
-// Returns the number of available blocks are in the planner buffer.
+// Returns the number of available blocks in the planner buffer.
 uint8_t plan_get_block_buffer_available();
 
 // Returns the status of the block ring buffer. True, if buffer is full.
 bool plan_check_full_buffer();
 
 void plan_get_planner_mpos(float *target);
-
+void plan_feed_override (uint8_t feed_override, uint8_t rapid_override);
 
 #endif
