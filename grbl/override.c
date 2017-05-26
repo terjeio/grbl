@@ -24,7 +24,7 @@
 #include "grbl.h"
 
 static uint8_t feed_buf[FEED_OVR_BUFSIZE], accessory_buf[FEED_OVR_BUFSIZE];
-static volatile uint8_t feed_head = 0, feed_tail = 0, accessory_head = 0, accessory_tail = 0;
+static volatile uint32_t feed_head = 0, feed_tail = 0, accessory_head = 0, accessory_tail = 0;
 
 void enqueue_feed_ovr (uint8_t cmd) {
 
@@ -39,7 +39,7 @@ void enqueue_feed_ovr (uint8_t cmd) {
 // Returns 0 if no commands enqueued
 uint8_t get_feed_ovr (void) {
 
-    uint8_t data = 0, bptr = feed_tail;
+    uint32_t data = 0, bptr = feed_tail;
 
     if(bptr != feed_head) {
         data = feed_buf[bptr++];                    // Get next character, increment tmp pointer
@@ -51,7 +51,7 @@ uint8_t get_feed_ovr (void) {
 
 void enqueue_accessory_ovr (uint8_t cmd) {
 
-    uint8_t bptr = (accessory_head + 1) & (FEED_OVR_BUFSIZE - 1);    // Get next head pointer
+    uint32_t bptr = (accessory_head + 1) & (FEED_OVR_BUFSIZE - 1);    // Get next head pointer
 
     if(bptr != accessory_tail) {                       // If not buffer full
         accessory_buf[accessory_head] = cmd;           // add data to buffer
@@ -62,7 +62,8 @@ void enqueue_accessory_ovr (uint8_t cmd) {
 // Returns 0 if no commands enqueued
 uint8_t get_accessory_ovr (void) {
 
-    uint8_t data = 0, bptr = accessory_tail;
+    uint8_t data = 0;
+    uint32_t bptr = accessory_tail;
 
     if(bptr != accessory_head) {
         data = accessory_buf[bptr++];                    // Get next character, increment tmp pointer

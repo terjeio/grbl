@@ -41,6 +41,10 @@
   #define DEFAULT_X_MAX_TRAVEL 200.0 // mm NOTE: Must be a positive value.
   #define DEFAULT_Y_MAX_TRAVEL 200.0 // mm NOTE: Must be a positive value.
   #define DEFAULT_Z_MAX_TRAVEL 200.0 // mm NOTE: Must be a positive value.
+  #define DEFAULT_SPINDLE_PWM_FREQ          5000	// Hz
+  #define DEFAULT_SPINDLE_PWM_OFF_VALUE     0.0		// Percent
+  #define DEFAULT_SPINDLE_PWM_MIN_VALUE     0.0		// Percent
+  #define DEFAULT_SPINDLE_PWM_MAX_VALUE     100.0	// Percent
   #define DEFAULT_SPINDLE_RPM_MAX 1000.0 // rpm
   #define DEFAULT_SPINDLE_RPM_MIN 0.0 // rpm
   #define DEFAULT_STEP_PULSE_MICROSECONDS 10

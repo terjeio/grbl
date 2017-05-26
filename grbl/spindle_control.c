@@ -28,7 +28,7 @@ void spindle_set_override (uint8_t speed_ovr)
 	speed_ovr = max(min(speed_ovr, MAX_SPINDLE_SPEED_OVERRIDE), MIN_SPINDLE_SPEED_OVERRIDE);
 
     if (speed_ovr != sys.spindle_speed_ovr) {
-        sys.step_control.update_spindle_pwm = true;
+        sys.step_control.update_spindle_pwm = on;
         sys.spindle_speed_ovr = speed_ovr;
         sys.report_ovr_counter = 0; // Set to report change immediately
     }
@@ -63,7 +63,7 @@ void _spindle_set_state(spindle_state_t state)
             hal.spindle_set_status(state, 0.0f, DEFAULT_SPINDLE_SPEED_OVERRIDE);
           #endif
         }
-        sys.report_ovr_counter = 0; // Set to report change immediately
+        sys.report_ovr_counter = -1; // Set to report change immediately
     }
 }
 

@@ -25,9 +25,9 @@
 
 // Declare system global variable structure
 system_t sys;
-int32_t sys_position[N_AXIS];      // Real-time machine (aka home) position vector in steps.
-int32_t sys_probe_position[N_AXIS]; // Last probe position in machine coordinates and steps.
-volatile uint8_t sys_probe_state;   // Probing state value.  Used to coordinate the probing cycle with stepper ISR.
+int32_t sys_position[N_AXIS];         // Real-time machine (aka home) position vector in steps.
+int32_t sys_probe_position[N_AXIS];   // Last probe position in machine coordinates and steps.
+volatile uint8_t sys_probe_state;     // Probing state value.  Used to coordinate the probing cycle with stepper ISR.
 volatile uint8_t sys_rt_exec_state;   // Global realtime executor bitflag variable for state management. See EXEC bitmasks.
 volatile uint8_t sys_rt_exec_alarm;   // Global realtime executor bitflag variable for setting various alarms.
 
@@ -40,8 +40,7 @@ int grbl_enter (void)
 
 	memset(&hal, 0, sizeof(HAL));  // Clear...
 
-	hal.version = 3; // Update when signatures and/or contract is changed - hal_init() should fail
-	hal.spindle_pwm_off = SPINDLE_PWM_OFF_VALUE;
+	hal.version = 3; // Update when signatures and/or contract is changed - driver_init() should fail
 
 	driver_ok = driver_init();
 
@@ -71,19 +70,19 @@ driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
 #ifdef ENABLE_M7
     driver_ok = driver_ok & hal.driver_cap.mist_control;
 #else
-    hal.driver_cap.mist_control = false;
+    hal.driver_cap.mist_control = off;
 #endif
 
 #ifdef USE_SPINDLE_DIR_AS_ENABLE_PIN
     driver_ok = driver_ok & hal.driver_cap.spindle_dir;
 #else
-    hal.driver_cap.spindle_dir = false;
+    hal.driver_cap.spindle_dir = off;
 #endif
 
 #ifdef ENABLE_SOFTWARE_DEBOUNCE
     driver_ok = driver_ok & hal.driver_cap.software_debounce;
 #else
-    hal.driver_cap.software_debounce = false;
+    hal.driver_cap.software_debounce = off;
 #endif
 
 #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
@@ -94,10 +93,11 @@ driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
 #endif
 
 #ifndef STEP_PULSE_DELAY // -> setting
-	hal.driver_cap.step_pulse_delay = false;
+	hal.driver_cap.step_pulse_delay = off;
 #endif
 
 #ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
+    driver_ok = driver_ok & hal.driver_cap.safety_door;
 #endif
 
 // TODO: settings to be made configurable via $nn=
@@ -107,7 +107,7 @@ driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
 #endif
 
 #ifdef DISABLE_PROBE_PIN_PULL_UP
-	settings.flags.disable_probe_pullup = true;
+	settings.flags.disable_probe_pullup = on;
 #endif
 
 #ifdef DISABLE_CONTROL_PINS_PULL_UP_MASK
@@ -115,33 +115,25 @@ driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
 #endif
 
 #ifdef INVERT_SPINDLE_ENABLE_PIN
-	settings.flags.invert_spindle_enable = true;
+	settings.flags.invert_spindle_enable = on;
 #endif
 
 #ifdef INVERT_COOLANT_FLOOD_PIN
-	settings.flags.invert_flood_pin = true;
+	settings.flags.invert_flood_pin = on;
 #endif
 
 #ifdef INVERT_COOLANT_MIST_PIN
-    settings.flags.invert_mist_pin = true;
+    settings.flags.invert_mist_pin = on;
 #endif
 
 #ifdef SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED
-    settings.flags.spindle_disable_with_zero_speed = true;
+    settings.flags.spindle_disable_with_zero_speed = on;
 #endif
 
-#ifdef INVERT_CONTROL_PIN_MASK
-    settings.control_invert_mask = INVERT_CONTROL_PIN_MASK;
-#endif
-
-#ifdef INVERT_LIMIT_PIN_MASK
-    settings.limit_invert_mask = INVERT_LIMIT_PIN_MASK;
-#endif
-
-    driver_ok = driver_ok && hal.driver_setup();
+    driver_ok = driver_ok && hal.driver_setup(&settings);
 
     if(!driver_ok) {
-        hal.serial_write_string("Grbl: incompatible driver\r\n");
+        serial_write_string("Grbl: incompatible driver\r\n");
         while(true);
     }
 

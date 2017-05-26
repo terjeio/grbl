@@ -27,7 +27,7 @@ settings_t settings;
 void settings_store_startup_line (uint8_t n, char *line)
 {
 	if(hal.eeprom.type != EEPROM_None) {
-		memcpy_to_eeprom_with_checksum(EEPROM_ADDR_STARTUP_BLOCK + n * (MAX_STORED_LINE_LENGTH + 1), (char*)line, MAX_STORED_LINE_LENGTH);
+		memcpy_to_eeprom_with_checksum(EEPROM_ADDR_STARTUP_BLOCK + n * (MAX_STORED_LINE_LENGTH + 1), (uint8_t *)line, MAX_STORED_LINE_LENGTH);
       #ifdef EMULATE_EEPROM
 		if(hal.eeprom.type == EEPROM_Emulated)
 		    settings_dirty.startup_lines[n] = settings_dirty.is_dirty = true;
@@ -39,7 +39,7 @@ void settings_store_startup_line (uint8_t n, char *line)
 void settings_store_build_info (char *line)
 {
 	if(hal.eeprom.type != EEPROM_None) {
-		memcpy_to_eeprom_with_checksum(EEPROM_ADDR_BUILD_INFO, (char*)line, MAX_STORED_LINE_LENGTH);
+		memcpy_to_eeprom_with_checksum(EEPROM_ADDR_BUILD_INFO, (uint8_t *)line, MAX_STORED_LINE_LENGTH);
       #ifdef EMULATE_EEPROM
         if(hal.eeprom.type == EEPROM_Emulated)
             settings_dirty.build_info = settings_dirty.is_dirty = true;
@@ -51,7 +51,7 @@ void settings_store_build_info (char *line)
 void settings_write_coord_data (uint8_t coord_select, float *coord_data)
 {
 	if(hal.eeprom.type != EEPROM_None) {
-		memcpy_to_eeprom_with_checksum(EEPROM_ADDR_PARAMETERS + coord_select * (sizeof(float) * N_AXIS + 1), (char*)coord_data, sizeof(float) * N_AXIS);
+		memcpy_to_eeprom_with_checksum(EEPROM_ADDR_PARAMETERS + coord_select * (sizeof(float) * N_AXIS + 1), (uint8_t *)coord_data, sizeof(float) * N_AXIS);
       #ifdef EMULATE_EEPROM
         if(hal.eeprom.type == EEPROM_Emulated)
             settings_dirty.coord_data[coord_select] = settings_dirty.is_dirty = true;
@@ -65,8 +65,8 @@ void write_global_settings ()
 {
 	if(hal.eeprom.type != EEPROM_None) {
 	    settings.version = SETTINGS_VERSION;
-		eeprom_put_char(0, SETTINGS_VERSION);
-		memcpy_to_eeprom_with_checksum(EEPROM_ADDR_GLOBAL, (char*)&settings, sizeof(settings_t));
+		eeprom_put_byte(0, SETTINGS_VERSION);
+		memcpy_to_eeprom_with_checksum(EEPROM_ADDR_GLOBAL, (uint8_t *)&settings, sizeof(settings_t));
       #ifdef EMULATE_EEPROM
 		if(hal.eeprom.type == EEPROM_Emulated)
             settings_dirty.global_settings = settings_dirty.is_dirty = true;
@@ -79,6 +79,8 @@ void write_global_settings ()
 void settings_restore (uint8_t restore_flag) {
 
     if (restore_flag & SETTINGS_RESTORE_DEFAULTS) {
+
+    	settings.version = SETTINGS_VERSION;
 
         settings.pulse_microseconds = DEFAULT_STEP_PULSE_MICROSECONDS;
 	    settings.stepper_idle_lock_time = DEFAULT_STEPPER_IDLE_LOCK_TIME;
@@ -100,30 +102,63 @@ void settings_restore (uint8_t restore_flag) {
 	    settings.flags.value = 0;
 
 	    if (DEFAULT_REPORT_INCHES)
-	        settings.flags.report_inches = 1;
+	        settings.flags.report_inches = on;
 
 	    if (DEFAULT_LASER_MODE)
-            settings.flags.laser_mode = 1;
+            settings.flags.laser_mode = on;
 
 	    if (DEFAULT_INVERT_ST_ENABLE)
-            settings.flags.invert_st_enable = 1;
+            settings.flags.invert_st_enable = on;
 
 	    if (DEFAULT_HARD_LIMIT_ENABLE)
-            settings.flags.hard_limit_enable = 1;
+            settings.flags.hard_limit_enable = on;
 
 	    if (DEFAULT_HOMING_ENABLE)
-            settings.flags.homing_enable = 1;
+            settings.flags.homing_enable = on;
 
 	    if (DEFAULT_SOFT_LIMIT_ENABLE)
-            settings.flags.soft_limit_enable = 1;
+            settings.flags.soft_limit_enable = on;
 
 	    if (DEFAULT_INVERT_PROBE_PIN)
-            settings.flags.invert_probe_pin = 1;
+            settings.flags.invert_probe_pin = on;
+
+	  #ifndef ENABLE_M7
+        settings.flags.disable_M7 = on;
+	  #endif
+
+  	  #ifdef REPORT_FIELD_BUFFER_STATE
+		settings.status_report_mask.buffer_state = on;
+	  #endif
+
+	  #ifdef REPORT_FIELD_LINE_NUMBERS
+		settings.status_report_mask.line_numbers = on;
+	  #endif
+
+	  #ifdef REPORT_FIELD_CURRENT_FEED_SPEED
+		settings.status_report_mask.feed_speed = on;
+	  #endif
+
+	  #ifdef REPORT_FIELD_PIN_STATE
+		settings.status_report_mask.pin_state = on;
+	  #endif
+
+	  #ifdef REPORT_FIELD_WORK_COORD_OFFSET
+		settings.status_report_mask.work_coord_offset = on;
+	  #endif
+
+	  #ifdef REPORT_FIELD_OVERRIDES
+		settings.status_report_mask.overrrides = on;
+	  #endif
 
       #ifdef INVERT_LIMIT_PIN_MASK
 	    settings.limit_invert_mask = INVERT_LIMIT_PIN_MASK;
       #endif
-        settings.steps_per_mm[X_AXIS] = DEFAULT_X_STEPS_PER_MM;
+
+	  #ifdef INVERT_CONTROL_PIN_MASK
+		settings.control_invert_mask = INVERT_CONTROL_PIN_MASK;
+	  #endif
+
+	    settings.steps_per_mm[X_AXIS] = DEFAULT_X_STEPS_PER_MM;
 	    settings.steps_per_mm[Y_AXIS] = DEFAULT_Y_STEPS_PER_MM;
 	    settings.steps_per_mm[Z_AXIS] = DEFAULT_Z_STEPS_PER_MM;
 	    settings.max_rate[X_AXIS] = DEFAULT_X_MAX_RATE;
@@ -135,35 +170,41 @@ void settings_restore (uint8_t restore_flag) {
 	    settings.max_travel[X_AXIS] = (-DEFAULT_X_MAX_TRAVEL);
 	    settings.max_travel[Y_AXIS] = (-DEFAULT_Y_MAX_TRAVEL);
 	    settings.max_travel[Z_AXIS] = (-DEFAULT_Z_MAX_TRAVEL);
+	    settings.spindle_pwm_freq = DEFAULT_SPINDLE_PWM_FREQ;
+	    settings.spindle_pwm_off_value = DEFAULT_SPINDLE_PWM_OFF_VALUE;
+	    settings.spindle_pwm_min_value = DEFAULT_SPINDLE_PWM_MIN_VALUE;
+	    settings.spindle_pwm_max_value = DEFAULT_SPINDLE_PWM_MAX_VALUE;
+	    settings.rpm_max = DEFAULT_SPINDLE_RPM_MAX;
+	    settings.rpm_min = DEFAULT_SPINDLE_RPM_MIN;
 
 	    write_global_settings();
     }
 
     if (restore_flag & SETTINGS_RESTORE_PARAMETERS) {
-        uint8_t idx;
+        uint32_t idx;
         float coord_data[N_AXIS];
         memset(&coord_data, 0, sizeof(coord_data));
-        for (idx=0; idx <= SETTING_INDEX_NCOORD; idx++)
+        for (idx = 0; idx <= SETTING_INDEX_NCOORD; idx++)
             settings_write_coord_data(idx, coord_data);
     }
 
     if (hal.eeprom.type != EEPROM_None && (restore_flag & SETTINGS_RESTORE_STARTUP_LINES)) {
       #if N_STARTUP_LINE > 0
-        eeprom_put_char(EEPROM_ADDR_STARTUP_BLOCK, 0);
+        eeprom_put_byte(EEPROM_ADDR_STARTUP_BLOCK, 0);
       #endif
       #if N_STARTUP_LINE > 1
-        eeprom_put_char(EEPROM_ADDR_STARTUP_BLOCK + (MAX_STORED_LINE_LENGTH + 1), 0);
+        eeprom_put_byte(EEPROM_ADDR_STARTUP_BLOCK + (MAX_STORED_LINE_LENGTH + 1), 0);
       #endif
     }
 
     if (restore_flag & SETTINGS_RESTORE_BUILD_INFO && hal.eeprom.type != EEPROM_None)
-        eeprom_put_char(EEPROM_ADDR_BUILD_INFO , 0);
+        eeprom_put_byte(EEPROM_ADDR_BUILD_INFO , 0);
 }
 
 // Reads startup line from EEPROM. Updated pointed line string data.
 bool settings_read_startup_line (uint8_t n, char *line)
 {
-    if (!(hal.eeprom.type != EEPROM_None && memcpy_from_eeprom_with_checksum((char*)line, EEPROM_ADDR_STARTUP_BLOCK + n * (MAX_STORED_LINE_LENGTH + 1), MAX_STORED_LINE_LENGTH))) {
+    if (!(hal.eeprom.type != EEPROM_None && memcpy_from_eeprom_with_checksum((uint8_t *)line, EEPROM_ADDR_STARTUP_BLOCK + n * (MAX_STORED_LINE_LENGTH + 1), MAX_STORED_LINE_LENGTH))) {
         // Reset line with default value
         line[0] = 0; // Empty line
         settings_store_startup_line(n, line);
@@ -176,7 +217,7 @@ bool settings_read_startup_line (uint8_t n, char *line)
 // Reads startup line from EEPROM. Updated pointed line string data.
 bool settings_read_build_info(char *line)
 {
-    if (!(hal.eeprom.type != EEPROM_None && memcpy_from_eeprom_with_checksum((char*)line, EEPROM_ADDR_BUILD_INFO, MAX_STORED_LINE_LENGTH))) {
+    if (!(hal.eeprom.type != EEPROM_None && memcpy_from_eeprom_with_checksum((uint8_t *)line, EEPROM_ADDR_BUILD_INFO, MAX_STORED_LINE_LENGTH))) {
         // Reset line with default value
         line[0] = 0; // Empty line
         settings_store_build_info(line);
@@ -189,7 +230,7 @@ bool settings_read_build_info(char *line)
 // Read selected coordinate data from EEPROM. Updates pointed coord_data value.
 bool settings_read_coord_data (uint8_t coord_select, float *coord_data)
 {
-    if (!(hal.eeprom.type != EEPROM_None && memcpy_from_eeprom_with_checksum((char*)coord_data, EEPROM_ADDR_PARAMETERS + coord_select * (sizeof(float) * N_AXIS + 1), sizeof(float) * N_AXIS))) {
+    if (!(hal.eeprom.type != EEPROM_None && memcpy_from_eeprom_with_checksum((uint8_t *)coord_data, EEPROM_ADDR_PARAMETERS + coord_select * (sizeof(float) * N_AXIS + 1), sizeof(float) * N_AXIS))) {
         // Reset with default zero vector
         clear_vector_float(coord_data);
         settings_write_coord_data(coord_select, coord_data);
@@ -201,7 +242,7 @@ bool settings_read_coord_data (uint8_t coord_select, float *coord_data)
 // Reads Grbl global settings struct from EEPROM.
 bool read_global_settings () {
     // Check version-byte of eeprom
-    return hal.eeprom.type != EEPROM_None && SETTINGS_VERSION == eeprom_get_char(0) && memcpy_from_eeprom_with_checksum((char*)&settings, EEPROM_ADDR_GLOBAL, sizeof(settings_t));
+    return hal.eeprom.type != EEPROM_None && SETTINGS_VERSION == eeprom_get_byte(0) && memcpy_from_eeprom_with_checksum((uint8_t *)&settings, EEPROM_ADDR_GLOBAL, sizeof(settings_t));
 }
 
 // A helper method to set settings from command line
@@ -232,7 +273,7 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
 
                     case AxisSetting_MaxRate:
                         #ifdef MAX_STEP_RATE_HZ
-                        if (value*settings.steps_per_mm[parameter] > (MAX_STEP_RATE_HZ * 60.0f))
+                        if (value * settings.steps_per_mm[parameter] > (MAX_STEP_RATE_HZ * 60.0f))
                             return Status_MaxStepRateExceeded;
                         #endif
                         settings.max_rate[parameter] = value;
@@ -280,7 +321,7 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
                 break;
 
             case Setting_InvertStepperEnable: // Reset to ensure change. Immediate re-init may cause problems.
-                settings.flags.invert_st_enable = int_value;
+                settings.flags.invert_st_enable = int_value != 0;
                 break;
 
             case Setting_InvertLimitPins: // Reset to ensure change. Immediate re-init may cause problems.
@@ -288,7 +329,7 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
                 break;
 
             case Setting_InvertProbePin: // Reset to ensure change. Immediate re-init may cause problems.
-                settings.flags.invert_probe_pin = int_value;
+                settings.flags.invert_probe_pin = int_value !=0;
                 probe_configure_invert_mask(false);
                 break;
 
@@ -305,23 +346,27 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
                 break;
 
             case Setting_ReportInches:
-                settings.flags.report_inches = int_value;
+                settings.flags.report_inches = int_value != 0;
                 system_flag_wco_change(); // Make sure WCO is immediately updated.
+                break;
+
+            case Setting_ControlInvertMask:
+                settings.control_invert_mask.value = int_value;
                 break;
 
             case Setting_SoftLimitsEnable:
                 if (int_value && !settings.flags.homing_enable)
                     return Status_SoftLimitError;
-                settings.flags.soft_limit_enable = int_value;
+                settings.flags.soft_limit_enable = int_value != 0;
                 break;
 
             case Setting_HardLimitsEnable:
-                settings.flags.hard_limit_enable = int_value;
+                settings.flags.hard_limit_enable = int_value != 0;
                 limits_init(); // Re-init to immediately change. NOTE: Nice to have but could be problematic later.
                 break;
 
             case Setting_HomingEnable:
-                settings.flags.homing_enable = int_value;
+                settings.flags.homing_enable = int_value != 0;
                 if (!int_value)
                     settings.flags.soft_limit_enable = 0; // Force disable soft-limits.
                 break;
@@ -363,6 +408,26 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
                 return Status_SettingDisabledLaser;
               #endif
                 break;
+
+            case Setting_PWMFreq:
+            	settings.spindle_pwm_freq = value;
+//            	spindle_init();
+            	break; // Re-initialize spindle pwm calibration
+
+            case Setting_PWMOffValue:
+            	settings.spindle_pwm_off_value = value;
+//            	spindle_init();
+            	break; // Re-initialize spindle pwm calibration
+
+            case Setting_PWMMinValue:
+            	settings.spindle_pwm_min_value = value;
+//            	spindle_init();
+            	break; // Re-initialize spindle pwm calibration
+
+            case Setting_PWMMaxValue:
+            	settings.spindle_pwm_max_value = value;
+//            	spindle_init();
+            	break; // Re-initialize spindle pwm calibration
 
             default:
                 return Status_InvalidStatement;

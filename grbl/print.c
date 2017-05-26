@@ -49,9 +49,8 @@ static unsigned char buf[10];
 void print_unsigned_int8 (uint8_t n, uint8_t base, uint8_t digits)
 {
 
-    uint8_t i = 0;
-
-    for (; i < digits; i++) {
+    uint32_t i;
+    for (i = 0; i < digits; i++) {
         buf[i] = n % base ;
         n /= base;
     }
@@ -111,7 +110,7 @@ void printFloat (float n, uint8_t decimal_places)
         n = -n;
     }
 
-    uint8_t decimals = decimal_places;
+    uint32_t decimals = decimal_places;
     while (decimals >= 2) { // Quickly convert values expected to be E0 to E-4.
         n *= 100.0f;
         decimals -= 2;
@@ -123,8 +122,7 @@ void printFloat (float n, uint8_t decimal_places)
     n += 0.5f; // Add rounding factor. Ensures carryover through entire value.
 
     // Generate digits backwards and store in string.
-    uint8_t i = 0;
-    uint32_t a = (long)n; // TODO: check for wrong cast?
+    uint32_t i = 0, a = (long)n; // TODO: check for wrong cast?
     buf[decimal_places] = '.'; // Place decimal point, even if decimal places are zero.
 
     while(a > 0) {

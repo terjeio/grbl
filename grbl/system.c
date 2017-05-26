@@ -31,13 +31,18 @@ void control_interrupt_handler (control_signals_t signals)
             mc_reset();
         else if (signals.cycle_start)
             bit_true(sys_rt_exec_state, EXEC_CYCLE_START);
-      #ifndef ENABLE_SAFETY_DOOR_INPUT_PIN
         else if (signals.feed_hold)
             bit_true(sys_rt_exec_state, EXEC_FEED_HOLD);
-      #else
-        else if (signals.safety_door)
-            bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
-      #endif
+#ifdef SAFETY_DOOR_IGNORE_WHEN_IDLE
+		else if (signals.safety_door_ajar) {
+			if(sys.state != STATE_IDLE && sys.state != STATE_JOG)
+				bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
+			spindle_stop();
+		}
+#else
+		else if (signals.safety_door_ajar)
+			bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
+#endif
     }
 }
 
@@ -45,8 +50,8 @@ void control_interrupt_handler (control_signals_t signals)
 // Executes user startup script, if stored.
 void system_execute_startup (char *line)
 {
-    uint8_t n;
-    for (n=0; n < N_STARTUP_LINE; n++) {
+    uint32_t n;
+    for (n = 0; n < N_STARTUP_LINE; n++) {
         if (!(settings_read_startup_line(n, line)))
             report_execute_startup_message(line, Status_SettingReadFail);
         else if (line[0] != '\0')
@@ -66,7 +71,7 @@ void system_execute_startup (char *line)
 status_code_t system_execute_line (char *line)
 {
 
-    uint8_t counter = 1;
+    uint32_t counter = 1;
     float parameter, value;
     status_code_t retval = Status_OK;
     control_signals_t control_signals;

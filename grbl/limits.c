@@ -85,19 +85,18 @@ void limits_go_home (uint8_t cycle_mask)
     uint8_t step_pin[N_AXIS];
     float target[N_AXIS];
     float max_travel = 0.0f;
-    uint8_t idx;
     bool approach = true;
     float homing_rate = settings.homing_seek_rate;
     uint8_t limit_state, axislock, n_active_axis;
 
     memset(pl_data,0,sizeof(plan_line_data_t));
-    pl_data->condition.system_motion = true;
-    pl_data->condition.no_feed_override = true;
+    pl_data->condition.system_motion = on;
+    pl_data->condition.no_feed_override = on;
   #ifdef USE_LINE_NUMBERS
     pl_data->line_number = HOMING_CYCLE_LINE_NUMBER;
   #endif
 
-    idx = N_AXIS;
+    uint32_t idx = N_AXIS;
     do {
         idx--;
         // Initialize step pin masks
@@ -161,7 +160,7 @@ void limits_go_home (uint8_t cycle_mask)
         plan_buffer_line(target, pl_data); // Bypass mc_line(). Directly plan homing motion.
 
         sys.step_control.value = 0;
-        sys.step_control.execute_sys_motion = true; // Set to execute homing motion and clear existing flags.
+        sys.step_control.execute_sys_motion = on; // Set to execute homing motion and clear existing flags.
         st_prep_buffer(); // Prep and fill segment buffer from newly planned block.
         st_wake_up(); // Initiate motion
 

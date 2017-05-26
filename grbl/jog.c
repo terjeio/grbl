@@ -27,7 +27,7 @@ status_code_t jog_execute (plan_line_data_t *pl_data, parser_block_t *gc_block)
     // Initialize planner data struct for jogging motions.
     // NOTE: Spindle and coolant are allowed to fully function with overrides during a jog.
     pl_data->feed_rate = gc_block->values.f;
-    pl_data->condition.no_feed_override = true;
+    pl_data->condition.no_feed_override = on;
     #ifdef USE_LINE_NUMBERS
     pl_data->line_number = gc_block->values.n;
     #endif

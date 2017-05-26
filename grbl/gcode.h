@@ -244,7 +244,7 @@ typedef union {
     uint8_t value;
     struct {
         uint8_t jog_motion        :1,
-                check_mantissa    :1,
+                check_mantissa    :1, // not in use?
                 arc_is_clockwise  :1,
                 probe_is_away     :1,
                 probe_is_no_error :1,

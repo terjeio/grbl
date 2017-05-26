@@ -25,14 +25,20 @@
 typedef union {
     uint8_t value;
     struct {
-        uint8_t on  :1,
-                ccw :1,
-				dynamic;
+        uint8_t on      :1,
+                ccw     :1,
+				dynamic :1;
     };
 } spindle_state_t;
 
-// this is defined in cpu_map.h which no longer used
-#define SPINDLE_PWM_OFF_VALUE 0
+// used by driver
+typedef struct {
+	uint32_t period;
+	uint32_t off_value;
+	uint32_t min_value;
+	uint32_t max_value;
+	float pwm_gradient; // Precalulated value to speed up rpm to PWM conversions.
+} spindle_pwm_t;
 
 #define spindle_get_state() hal.spindle_get_state()
 
@@ -61,11 +67,11 @@ void spindle_set_override (uint8_t speed_ovr);
 
   // Called by g-code parser when setting spindle state and requires a buffer sync.
   #define spindle_sync(state, rpm) _spindle_sync(state)
-  void _spindle_sync(uint8_t state);
+  void _spindle_sync(spindle_state_t state);
 
   // Sets spindle running state with direction and enable.
   #define spindle_set_state(state, rpm) _spindle_set_state(state)
-  void _spindle_set_state(uint8_t state);
+  void _spindle_set_state(spindle_state_t state);
 
 #endif
 

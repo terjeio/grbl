@@ -32,13 +32,12 @@
 // Scientific notation is officially not supported by g-code, and the 'E' character may
 // be a g-code word on some CNC systems. So, 'E' notation will not be recognized.
 // NOTE: Thanks to Radu-Eosif Mihailescu for identifying the issues with using strtod().
-bool read_float (char *line, uint8_t *char_counter, float *float_ptr)
+bool read_float (char *line, uint32_t *char_counter, float *float_ptr)
 {
+    char c;
     char *ptr = line + *char_counter;
-    unsigned char c;
-    uint32_t intval = 0;
-    int8_t exp = 0;
-    uint8_t ndigit = 0;
+    int32_t exp = 0;
+    uint32_t intval = 0, ndigit = 0;
     bool isnegative, isdecimal = false;
 
     // Grab first character and increment pointer. No spaces assumed in line.
@@ -99,8 +98,9 @@ bool read_float (char *line, uint8_t *char_counter, float *float_ptr)
 // Non-blocking delay function used for general operation and suspend features.
 void delay_sec (float seconds, delaymode_t mode)
 {
-    uint16_t i = (uint16_t)ceilf((1000 / DWELL_TIME_STEP) * seconds);
-    while (!sys.abort && --i) {
+    uint32_t i = (uint32_t)ceilf((1000.0f / DWELL_TIME_STEP) * seconds) + 1;
+
+    while (--i && !sys.abort) {
         if (mode == DelayMode_Dwell) {
             protocol_execute_realtime();
         } else { // DelayMode_SysSuspend
@@ -148,3 +148,17 @@ float limit_value_by_axis_maximum (float *max_value, float *unit_vec)
 
     return limit_value;
 }
+
+// calculate checksum byte for EEPROM data
+uint8_t calc_checksum (uint8_t *data, uint32_t size) {
+
+    uint8_t checksum = 0;
+
+    while(size--) {
+        checksum = (checksum << 1) || (checksum >> 7);
+        checksum += *(data++);
+    }
+
+    return checksum;
+}
+

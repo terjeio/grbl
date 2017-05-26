@@ -104,9 +104,9 @@ typedef struct {
 static stepper_t st;
 
 // Step segment ring buffer indices
-static volatile uint8_t segment_buffer_tail;
-static uint8_t segment_buffer_head;
-static uint8_t segment_next_head;
+static volatile uint32_t segment_buffer_tail;
+static uint32_t segment_buffer_head;
+static uint32_t segment_next_head;
 
 // Pointers for the step segment being prepped from the planner buffer. Accessed only by the
 // main program. Pointers may be planning segments or planner blocks ahead of what being executed.
@@ -198,7 +198,7 @@ void st_wake_up ()
     // Initialize stepper output bits to ensure first ISR call does not step.
     st.step_outbits.value = 0;
   #ifdef  VARIABLE_SPINDLE
-    st.spindle_pwm  = SPINDLE_PWM_OFF_VALUE;
+    st.spindle_pwm  = hal.spindle_pwm_off;
   #endif
     hal.stepper_wake_up();
 
@@ -330,7 +330,7 @@ void stepper_driver_interrupt_handler (void)
           #ifdef VARIABLE_SPINDLE
             // Ensure pwm is set properly upon completion of rate-controlled motion.
             if (st.exec_block->is_pwm_rate_adjusted)
-                st.spindle_pwm = spindle_set_speed(SPINDLE_PWM_OFF_VALUE);
+                st.spindle_pwm = spindle_set_speed(hal.spindle_pwm_off);
           #endif
             system_set_exec_state_flag(EXEC_CYCLE_STOP); // Flag main program for cycle end
 
@@ -357,7 +357,7 @@ void stepper_driver_interrupt_handler (void)
   #endif
 
     if (st.counter_x > st.exec_block->step_event_count) {
-        st.step_outbits.x = 1;
+        st.step_outbits.x = on;
         st.counter_x -= st.exec_block->step_event_count;
         sys_position[X_AXIS] = sys_position[X_AXIS] + (st.exec_block->direction_bits.x ? -1 : 1);
     }
@@ -367,7 +367,7 @@ void stepper_driver_interrupt_handler (void)
     st.counter_y += st.exec_block->steps[Y_AXIS];
   #endif
     if (st.counter_y > st.exec_block->step_event_count) {
-        st.step_outbits.y = 1;
+        st.step_outbits.y = on;
         st.counter_y -= st.exec_block->step_event_count;
         sys_position[Y_AXIS] = sys_position[Y_AXIS] + (st.exec_block->direction_bits.y ? -1 : 1);
     }
@@ -377,7 +377,7 @@ void stepper_driver_interrupt_handler (void)
     st.counter_z += st.exec_block->steps[Z_AXIS];
   #endif
     if (st.counter_z > st.exec_block->step_event_count) {
-        st.step_outbits.z = 1;
+        st.step_outbits.z = on;
         st.counter_z -= st.exec_block->step_event_count;
         sys_position[Z_AXIS] = sys_position[Z_AXIS] + (st.exec_block->direction_bits.z ? -1 : 1);
     }
@@ -421,7 +421,7 @@ void st_reset ()
 void st_update_plan_block_parameters ()
 {
     if (pl_block != NULL) { // Ignore if at start of a new block.
-        prep.recalculate_flags.recalculate = true;
+        prep.recalculate_flags.recalculate = on;
         pl_block->entry_speed_sqr = prep.current_speed*prep.current_speed; // Update entry speed.
         pl_block = NULL; // Flag st_prep_segment() to load and check active velocity profile.
     }
@@ -447,8 +447,8 @@ inline static uint8_t st_next_block_index (uint8_t block_index)
       prep.last_step_per_mm = prep.step_per_mm;
     }
     // Set flags to execute a parking motion
-    prep.recalculate_flags.parking = true;
-    prep.recalculate_flags.recalculate = false;
+    prep.recalculate_flags.parking = on;
+    prep.recalculate_flags.recalculate = off;
     pl_block = NULL; // Always reset parking motion to reload new block.
   }
 
@@ -464,7 +464,7 @@ inline static uint8_t st_next_block_index (uint8_t block_index)
       prep.dt_remainder = prep.last_dt_remainder;
       prep.step_per_mm = prep.last_step_per_mm;
       prep.recalculate_flags.value = 0;
-      prep.recalculate_flags.hold_partial_block = prep.recalculate_flags.recalculate = true;
+      prep.recalculate_flags.hold_partial_block = prep.recalculate_flags.recalculate = on;
       prep.req_mm_increment = REQ_MM_INCREMENT_SCALAR / prep.step_per_mm; // Recompute this value.
     } else
       prep.recalculate_flags.value = 0;
@@ -510,7 +510,7 @@ void st_prep_buffer()
             if (prep.recalculate_flags.recalculate) {
                 #ifdef PARKING_ENABLE
                   if (prep.recalculate_flags.parking)
-                      prep.recalculate_flags.recalculate = false;
+                      prep.recalculate_flags.recalculate = off;
                   else
                       prep.recalculate_flags.value = 0;
                 #else
@@ -555,7 +555,7 @@ void st_prep_buffer()
                     // New block loaded mid-hold. Override planner block entry speed to enforce deceleration.
                     prep.current_speed = prep.exit_speed;
                     pl_block->entry_speed_sqr = prep.exit_speed * prep.exit_speed;
-                    prep.recalculate_flags.decel_ovveride = false;
+                    prep.recalculate_flags.decel_ovveride = off;
                 } else
                     prep.current_speed = sqrtf(pl_block->entry_speed_sqr);
 
@@ -619,7 +619,7 @@ void st_prep_buffer()
 
                         // Compute override block exit speed since it doesn't match the planner exit speed.
                         prep.exit_speed = sqrtf(pl_block->entry_speed_sqr - 2.0f * pl_block->acceleration * pl_block->millimeters);
-                        prep.recalculate_flags.decel_ovveride = true; // Flag to load next block as deceleration override.
+                        prep.recalculate_flags.decel_ovveride = on; // Flag to load next block as deceleration override.
 
                         // TODO: Determine correct handling of parameters in deceleration-only.
                         // Can be tricky since entry speed will be current speed, as in feed holds.
@@ -662,7 +662,7 @@ void st_prep_buffer()
             }
 
           #ifdef VARIABLE_SPINDLE
-            sys.step_control.update_spindle_pwm = true; // Force update whenever updating block.
+            sys.step_control.update_spindle_pwm = on; // Force update whenever updating block.
           #endif
         }
 
@@ -792,9 +792,9 @@ void st_prep_buffer()
                                                                       : pl_block->spindle_speed, sys.spindle_speed_ovr);
             } else {
                 sys.spindle_speed = 0.0f;
-                prep.current_spindle_pwm = SPINDLE_PWM_OFF_VALUE;
+                prep.current_spindle_pwm = hal.spindle_pwm_off;
             }
-            sys.step_control.update_spindle_pwm = false;
+            sys.step_control.update_spindle_pwm = off;
         }
         prep_segment->spindle_pwm = prep.current_spindle_pwm; // Reload segment PWM value
 
@@ -820,10 +820,10 @@ void st_prep_buffer()
         if (prep_segment->n_step == 0 && sys.step_control.execute_hold) {
             // Less than one step to decelerate to zero speed, but already very close. AMASS
             // requires full steps to execute. So, just bail.
-            sys.step_control.end_motion = true;
+            sys.step_control.end_motion = on;
           #ifdef PARKING_ENABLE
             if (!prep.recalculate_flags.parking)
-                prep.recalculate_flags.hold_partial_block = true;
+                prep.recalculate_flags.hold_partial_block = on;
           #endif
             return; // Segment not generated, but current step data still retained.
         }
@@ -873,16 +873,16 @@ void st_prep_buffer()
                 // Reset prep parameters for resuming and then bail. Allow the stepper ISR to complete
                 // the segment queue, where realtime protocol will set new state upon receiving the
                 // cycle stop flag from the ISR. Prep_segment is blocked until then.
-                sys.step_control.end_motion = true;
+                sys.step_control.end_motion = on;
               #ifdef PARKING_ENABLE
                 if (!prep.recalculate_flags.parking)
-                    prep.recalculate_flags.hold_partial_block = true;
+                    prep.recalculate_flags.hold_partial_block = on;
               #endif
                 return; // Bail!
             } else { // End of planner block
                 // The planner block is complete. All steps are set to be executed in the segment buffer.
                 if (sys.step_control.execute_sys_motion) {
-                    sys.step_control.end_motion = true;
+                    sys.step_control.end_motion = on;
                     return;
                 }
                 pl_block = NULL; // Set pointer to indicate check and load next planner block.

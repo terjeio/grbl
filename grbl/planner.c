@@ -24,10 +24,10 @@
 
 
 static plan_block_t block_buffer[BLOCK_BUFFER_SIZE];  // A ring buffer for motion instructions
-static uint8_t block_buffer_tail;     // Index of the block to process now
-static uint8_t block_buffer_head;     // Index of the next block to be pushed
-static uint8_t next_buffer_head;      // Index of the next buffer head
-static uint8_t block_buffer_planned;  // Index of the optimally planned block
+static uint32_t block_buffer_tail;     // Index of the block to process now
+static uint32_t block_buffer_head;     // Index of the next block to be pushed
+static uint32_t next_buffer_head;      // Index of the next buffer head
+static uint32_t block_buffer_planned;  // Index of the optimally planned block
 
 // Define planner variables
 typedef struct {
@@ -42,14 +42,14 @@ static planner_t pl;
 
 
 // Returns the index of the next block in the ring buffer. Also called by stepper segment buffer.
-inline uint8_t plan_next_block_index (uint8_t block_index)
+inline uint32_t plan_next_block_index (uint32_t block_index)
 {
     return block_index == (BLOCK_BUFFER_SIZE - 1) ? 0 : block_index + 1;
 }
 
 
 // Returns the index of the previous block in the ring buffer
-inline static uint8_t plan_prev_block_index (uint8_t block_index)
+inline static uint32_t plan_prev_block_index (uint32_t block_index)
 {
     return block_index == 0 ? (BLOCK_BUFFER_SIZE - 1) : block_index - 1;
 }
@@ -123,7 +123,7 @@ inline static uint8_t plan_prev_block_index (uint8_t block_index)
 static void planner_recalculate ()
 {
     // Initialize block index to the last block in the planner buffer.
-    uint8_t block_index = plan_prev_block_index(block_buffer_head);
+    uint32_t block_index = plan_prev_block_index(block_buffer_head);
 
     // Bail. Can't do anything with one only one plan-able block.
     if (block_index == block_buffer_planned)
@@ -137,7 +137,7 @@ static void planner_recalculate ()
     plan_block_t *current = &block_buffer[block_index];
 
     // Calculate maximum entry speed for last block in buffer, where the exit speed is always zero.
-    current->entry_speed_sqr = min( current->max_entry_speed_sqr, 2.0f*current->acceleration*current->millimeters);
+    current->entry_speed_sqr = min(current->max_entry_speed_sqr, 2.0f * current->acceleration * current->millimeters);
 
     block_index = plan_prev_block_index(block_index);
     if (block_index == block_buffer_planned) { // Only two plannable blocks in buffer. Reverse pass complete.
@@ -214,7 +214,7 @@ void plan_reset ()
 void plan_discard_current_block ()
 {
     if (block_buffer_head != block_buffer_tail) { // Discard non-empty buffer.
-        uint8_t block_index = plan_next_block_index(block_buffer_tail);
+        uint32_t block_index = plan_next_block_index(block_buffer_tail);
         // Push block_buffer_planned pointer, if encountered.
         if (block_buffer_tail == block_buffer_planned)
             block_buffer_planned = block_index;
@@ -239,7 +239,7 @@ inline plan_block_t *plan_get_current_block ()
 
 inline float plan_get_exec_block_exit_speed_sqr ()
 {
-    uint8_t block_index = plan_next_block_index(block_buffer_tail);
+    uint32_t block_index = plan_next_block_index(block_buffer_tail);
     return block_index == block_buffer_head ? 0.0f : block_buffer[block_index].entry_speed_sqr;
 }
 
@@ -279,11 +279,10 @@ inline static void plan_compute_profile_parameters(plan_block_t *block, float no
         block->max_entry_speed_sqr = block->max_junction_speed_sqr;
 }
 
-
 // Re-calculates buffered motions profile parameters upon a motion-based override change.
 void plan_update_velocity_profile_parameters ()
 {
-    uint8_t block_index = block_buffer_tail;
+    uint32_t block_index = block_buffer_tail;
     plan_block_t *block;
     float nominal_speed, prev_nominal_speed = SOME_LARGE_VALUE; // Set high for first block nominal speed calculation.
 
@@ -369,10 +368,10 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
         else
             delta_mm = (target_steps[idx] - position_steps[idx])/settings.steps_per_mm[idx];
       #else
-        target_steps[idx] = lround(target[idx]*settings.steps_per_mm[idx]);
-        block->steps[idx] = labs(target_steps[idx]-position_steps[idx]);
+        target_steps[idx] = lround(target[idx] * settings.steps_per_mm[idx]);
+        block->steps[idx] = labs(target_steps[idx] - position_steps[idx]);
         block->step_event_count = max(block->step_event_count, block->steps[idx]);
-        delta_mm = (target_steps[idx] - position_steps[idx])/settings.steps_per_mm[idx];
+        delta_mm = (target_steps[idx] - position_steps[idx]) / settings.steps_per_mm[idx];
       #endif
         unit_vec[idx] = delta_mm; // Store unit vector numerator
 
@@ -455,7 +454,7 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
         } else {
             convert_delta_vector_to_unit_vector(junction_unit_vec);
             float junction_acceleration = limit_value_by_axis_maximum(settings.acceleration, junction_unit_vec);
-            float sin_theta_d2 = sqrtf(0.5f*(1.0f-junction_cos_theta)); // Trig half angle identity. Always positive.
+            float sin_theta_d2 = sqrtf(0.5f * (1.0f - junction_cos_theta)); // Trig half angle identity. Always positive.
             block->max_junction_speed_sqr = max(MINIMUM_JUNCTION_SPEED * MINIMUM_JUNCTION_SPEED,
                                                   (junction_acceleration * settings.junction_deviation * sin_theta_d2) / (1.0f - sin_theta_d2));
         }
@@ -513,7 +512,7 @@ void plan_sync_position ()
 // Returns the number of available blocks are in the planner buffer.
 uint8_t plan_get_block_buffer_available ()
 {
-    return block_buffer_head >= block_buffer_tail ? ((BLOCK_BUFFER_SIZE - 1) - (block_buffer_head - block_buffer_tail)) : (block_buffer_tail - block_buffer_head - 1);
+    return (uint8_t)(block_buffer_head >= block_buffer_tail ? ((BLOCK_BUFFER_SIZE - 1) - (block_buffer_head - block_buffer_tail)) : (block_buffer_tail - block_buffer_head - 1));
 }
 
 

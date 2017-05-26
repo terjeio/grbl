@@ -39,8 +39,6 @@
 #define DIRECTION_MASK ((1 << X_AXIS)|(1 << Y_AXIS)|(1 << Z_AXIS))
 #define LIMIT_MASK ((1 << X_AXIS)|(1 << Y_AXIS)|(1 << Z_AXIS))
 
-#define ENABLE_M7
-
 #endif
 
 /*

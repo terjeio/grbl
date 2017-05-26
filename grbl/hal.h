@@ -32,17 +32,12 @@
 #include "system.h"
 #include "coolant_control.h"
 #include "spindle_control.h"
+#include "eeprom.h"
 
 #define F_STEPTIMER 20000000 // stepper ISR timer clock frequency TODO: use hal.f_step_timer?
 
 //#define bit_true_atomic(var, bit) HWREGBITW(&var, bit) = 1;
 //#define bit_false_atomic(var, bit) HWREGBITW(&var, bit) = 0;
-
-typedef enum {
-    EEPROM_None = 0,
-    EEPROM_Physical,
-    EEPROM_Emulated
-} eeprom_type;
 
 // driver capabilities, to be set by driver in driver_init(), flags may be cleared after to switch off option
 typedef union {
@@ -61,28 +56,19 @@ typedef union {
     };
 } driver_cap_t;
 
-typedef struct {
-    eeprom_type type;
-    unsigned char (*get_char)(unsigned int addr);
-    void (*put_char)(unsigned int addr, unsigned char new_value);
-    void (*memcpy_to_with_checksum)(unsigned int destination, char *source, unsigned int size);
-    int (*memcpy_from_with_checksum)(char *destination, unsigned int source, unsigned int size);
-} eeprom_io_t;
-
 typedef struct HAL {
 	uint32_t version;
 	uint32_t f_step_timer;
 	uint32_t rx_buffer_size;
 	uint32_t spindle_pwm_off;
 
-	bool (*driver_setup)(void);
+	bool (*driver_setup)(settings_t *settings);
 
 	void (*limits_enable)(bool on);
     axes_signals_t (*limits_get_state)(void);
 	void (*coolant_set_state)(coolant_state_t mode);
 	coolant_state_t (*coolant_get_state)(void);
-	void (*delay_ms)(uint16_t ms);
-	void (*delay_us)(uint32_t us);
+	void (*delay_ms)(uint32_t ms);
 
 	bool (*probe_get_state)(void);
 	void (*probe_configure_invert_mask)(bool is_probe_away);

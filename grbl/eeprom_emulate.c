@@ -27,47 +27,41 @@
 
 #include "grbl.h"
 
-static unsigned char *noepromdata = 0;
+static uint8_t *noepromdata = 0;
 static eeprom_io_t physical_eeprom;
 
 settings_dirty_t settings_dirty;
 
-static unsigned char ram_get_char (unsigned int addr)
+static inline uint8_t ram_get_byte (uint32_t addr)
 {
     return noepromdata[addr];
 }
 
-static void ram_put_char (unsigned int addr, unsigned char new_value)
+static inline void ram_put_byte (uint32_t addr, uint8_t new_value)
 {
     noepromdata[addr] = new_value;
 }
 
 // Extensions added as part of Grbl
 
-static void memcpy_to_ram_with_checksum (unsigned int destination, char *source, unsigned int size)
+static void memcpy_to_ram_with_checksum (uint32_t destination, uint8_t *source, uint32_t size)
 {
-    unsigned char checksum = 0;
+    uint8_t checksum = calc_checksum(source, size);
 
-    for(; size > 0; size--) {
-        checksum = (checksum << 1) || (checksum >> 7);
-        checksum += *source;
-        ram_put_char(destination++, *(source++));
-    }
-    ram_put_char(destination, checksum);
+    for(; size > 0; size--)
+        ram_put_byte(destination++, *(source++));
+
+    ram_put_byte(destination, checksum);
 }
 
-static int memcpy_from_ram_with_checksum (char *destination, unsigned int source, unsigned int size)
+static bool memcpy_from_ram_with_checksum (uint8_t *destination, uint32_t source, uint32_t size)
 {
-    unsigned char data, checksum = 0;
+    uint8_t checksum = calc_checksum(&noepromdata[source], size);
 
-    for(; size > 0; size--) {
-        data = ram_get_char(source++);
-        checksum = (checksum << 1) || (checksum >> 7);
-        checksum += data;
-        *(destination++) = data;
-    }
+    for(; size > 0; size--)
+        *(destination++) = ram_get_byte(source++);
 
-    return checksum == ram_get_char(source);
+    return checksum == ram_get_byte(source);
 }
 
 //
@@ -86,20 +80,20 @@ bool eeprom_emu_init()
         if(physical_eeprom.type == EEPROM_Physical) {
 
             // Initialize physical EEPROM on settings version mismatch
-            if(physical_eeprom.get_char(0) != SETTINGS_VERSION)
+            if(physical_eeprom.get_byte(0) != SETTINGS_VERSION)
                 settings_init();
 
             // Copy physical EEPROM content to RAM
             do {
                 idx--;
-                ram_put_char(idx, physical_eeprom.get_char(idx));
+                ram_put_byte(idx, physical_eeprom.get_byte(idx));
             } while(idx);
         }
 
         // Switch hal to use RAM version of EEPROM data
         hal.eeprom.type = EEPROM_Emulated;
-        hal.eeprom.get_char = &ram_get_char;
-        hal.eeprom.put_char = &ram_put_char;
+        hal.eeprom.get_byte = &ram_get_byte;
+        hal.eeprom.put_byte = &ram_put_byte;
         hal.eeprom.memcpy_to_with_checksum = &memcpy_to_ram_with_checksum;
         hal.eeprom.memcpy_from_with_checksum = &memcpy_from_ram_with_checksum;
 
@@ -119,26 +113,24 @@ bool eeprom_emu_init()
 void eeprom_emu_sync_physical ()
 {
 
-    uint32_t idx;
-
     if(settings_dirty.is_dirty && physical_eeprom.type == EEPROM_Physical) {
 
         if(settings_dirty.build_info) {
             settings_dirty.build_info = false;
-            physical_eeprom.memcpy_to_with_checksum(EEPROM_ADDR_BUILD_INFO, (char*)(noepromdata + EEPROM_ADDR_BUILD_INFO), MAX_STORED_LINE_LENGTH);
+            physical_eeprom.memcpy_to_with_checksum(EEPROM_ADDR_BUILD_INFO, (uint8_t *)(noepromdata + EEPROM_ADDR_BUILD_INFO), MAX_STORED_LINE_LENGTH);
         }
 
         if(settings_dirty.global_settings) {
             settings_dirty.global_settings = false;
-            physical_eeprom.memcpy_to_with_checksum(EEPROM_ADDR_GLOBAL, (char*)(noepromdata + EEPROM_ADDR_GLOBAL), sizeof(settings_t));
+            physical_eeprom.memcpy_to_with_checksum(EEPROM_ADDR_GLOBAL, (uint8_t *)(noepromdata + EEPROM_ADDR_GLOBAL), sizeof(settings_t));
         }
 
-        idx = N_STARTUP_LINE;
+        uint32_t idx = N_STARTUP_LINE;
         do {
             idx--;
             if(settings_dirty.startup_lines[idx]) {
                 settings_dirty.startup_lines[idx] = false;
-                physical_eeprom.memcpy_to_with_checksum(EEPROM_ADDR_STARTUP_BLOCK + idx * (MAX_STORED_LINE_LENGTH + 1), (char*)(noepromdata + EEPROM_ADDR_STARTUP_BLOCK + idx * (MAX_STORED_LINE_LENGTH + 1)), MAX_STORED_LINE_LENGTH);
+                physical_eeprom.memcpy_to_with_checksum(EEPROM_ADDR_STARTUP_BLOCK + idx * (MAX_STORED_LINE_LENGTH + 1), (uint8_t *)(noepromdata + EEPROM_ADDR_STARTUP_BLOCK + idx * (MAX_STORED_LINE_LENGTH + 1)), MAX_STORED_LINE_LENGTH);
             }
         } while(idx);
 
@@ -147,7 +139,7 @@ void eeprom_emu_sync_physical ()
             idx--;
             if(settings_dirty.coord_data[idx]) {
                 settings_dirty.coord_data[idx] = false;
-                physical_eeprom.memcpy_to_with_checksum(EEPROM_ADDR_PARAMETERS + idx * (sizeof(float) * N_AXIS + 1), (char*)(noepromdata + EEPROM_ADDR_PARAMETERS + idx * (sizeof(float) * N_AXIS + 1)), sizeof(float) * N_AXIS);
+                physical_eeprom.memcpy_to_with_checksum(EEPROM_ADDR_PARAMETERS + idx * (sizeof(float) * N_AXIS + 1), (uint8_t *)(noepromdata + EEPROM_ADDR_PARAMETERS + idx * (sizeof(float) * N_AXIS + 1)), sizeof(float) * N_AXIS);
             }
         } while(idx);
 

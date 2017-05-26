@@ -27,7 +27,7 @@
 
 // Version of the EEPROM data. Will be used to migrate existing data from older versions of Grbl
 // when firmware is upgraded. Always stored in byte 0 of eeprom
-#define SETTINGS_VERSION 11  // NOTE: Check settings_reset() when moving to next version.
+#define SETTINGS_VERSION 12  // NOTE: Check settings_reset() when moving to next version.
 
 // Define settings restore bitflags.
 #define SETTINGS_RESTORE_DEFAULTS bit(0)
@@ -71,6 +71,7 @@ typedef enum {
     Setting_JunctionDeviation = 11,
     Setting_ArcTolerance = 12,
     Setting_ReportInches = 13,
+    Setting_ControlInvertMask = 14,
     Setting_SoftLimitsEnable = 20,
     Setting_HardLimitsEnable = 21,
     Setting_HomingEnable = 22,
@@ -82,6 +83,10 @@ typedef enum {
     Setting_RpmMax = 30,
     Setting_RpmMin = 31,
     Setting_LaserMode = 32,
+    Setting_PWMFreq = 33,
+    Setting_PWMOffValue = 34,
+    Setting_PWMMinValue = 35,
+    Setting_PWMMaxValue = 36,
     Setting_AxisSettingsBase = 100 // NOTE: Reserving settings values >= 100 for axis settings. Up to 255.
 } setting_type_t;
 
@@ -106,7 +111,8 @@ typedef union {
                  invert_mist_pin   :1,
                  invert_spindle_enable :1,
                  spindle_disable_with_zero_speed :1,
-                 disable_probe_pullup :1;
+                 disable_probe_pullup :1,
+				 disable_M7           :1;
     };
 } settingflags_t;
 
@@ -114,7 +120,12 @@ typedef union {
     uint8_t value;
     struct {
         uint8_t position_type :1,
-                buffer_state  :1;
+                buffer_state  :1,
+				line_numbers  :1,
+				feed_speed    :1,
+				pin_state     :1,
+				work_coord_offset :1,
+				overrrides    :1;
     };
 } reportmask_t;
 
@@ -134,6 +145,11 @@ typedef struct {
     float homing_pulloff;
     float rpm_max;
     float rpm_min;
+    float spindle_pwm_freq;
+    float spindle_pwm_period;
+    float spindle_pwm_off_value;
+    float spindle_pwm_min_value;
+    float spindle_pwm_max_value;
 
     uint8_t stepper_idle_lock_time; // If max value 255, steppers do not disable.
     control_signals_t control_invert_mask;

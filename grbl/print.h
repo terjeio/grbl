@@ -22,12 +22,7 @@
 #ifndef print_h
 #define print_h
 
-
-void printString(const char *s);
-
-#define PSTR(s) ((const char *)(s))
-#define printString(s) hal.serial_write_string(s)
-#define printPgmString(s) hal.serial_write_string(s)
+#define serial_write_string(s) hal.serial_write_string(s)
 
 void printInteger(int32_t n);
 

@@ -112,7 +112,7 @@ void mc_arc (float *target, plan_line_data_t *pl_data, float *position, float *o
         // all segments.
         if (pl_data->condition.inverse_time) {
             pl_data->feed_rate *= segments;
-            pl_data->condition.inverse_time = false; // Force as feed absolute mode over arc segments.
+            pl_data->condition.inverse_time = off; // Force as feed absolute mode over arc segments.
         }
 
         float theta_per_segment = angular_travel/segments;
@@ -152,8 +152,7 @@ void mc_arc (float *target, plan_line_data_t *pl_data, float *position, float *o
         float sin_Ti;
         float cos_Ti;
         float r_axisi;
-        uint16_t i;
-        uint8_t count = 0;
+        uint32_t i, count = 0;
 
         for (i = 1; i < segments; i++) { // Increment (segments-1).
 
@@ -332,8 +331,8 @@ void mc_parking_motion (float *parking_target, plan_line_data_t *pl_data)
         return; // Block during abort.
 
     if (plan_buffer_line(parking_target, pl_data)) {
-        sys.step_control.execute_sys_motion = 1;
-        sys.step_control.end_motion = 0; // Allow parking motion to execute, if feed hold is active.
+        sys.step_control.execute_sys_motion = on;
+        sys.step_control.end_motion = off; // Allow parking motion to execute, if feed hold is active.
         st_parking_setup_buffer(); // Setup step segment buffer for special parking motion case
         st_prep_buffer();
         st_wake_up();
@@ -344,7 +343,7 @@ void mc_parking_motion (float *parking_target, plan_line_data_t *pl_data)
         } while (sys.step_control.execute_sys_motion);
         st_parking_restore_buffer(); // Restore step segment buffer to normal run state.
     } else {
-        sys.step_control.execute_sys_motion = 0;
+        sys.step_control.execute_sys_motion = off;
         protocol_exec_rt_system();
     }
 }

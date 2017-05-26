@@ -39,7 +39,6 @@
 #define AXES_BITMASK ((1 << X_AXIS )|(1 << Y_AXIS)|(1 << Z_AXIS))
 
 #define delay_ms(d) hal.delay_ms(d)
-#define delay_us(d) hal.delay_us(d)
 
 // CoreXY motor assignments. DO NOT ALTER.
 // NOTE: If the A and B motor axis bindings are changed, this effects the CoreXY equations.
@@ -47,6 +46,14 @@
  #define A_MOTOR X_AXIS // Must be X_AXIS
  #define B_MOTOR Y_AXIS // Must be Y_AXIS
 #endif
+
+typedef enum {
+	Bit_Off = 0,
+	Bit_On = 1
+} bit_t;
+
+static const bit_t off = Bit_Off;
+static const bit_t on = Bit_On;
 
 typedef union {
     uint8_t value;
@@ -90,12 +97,15 @@ typedef enum {
 // Read a floating point value from a string. Line points to the input buffer, char_counter
 // is the indexer pointing to the current character of the line, while float_ptr is
 // a pointer to the result variable. Returns true when it succeeds
-bool read_float(char *line, uint8_t *char_counter, float *float_ptr);
+bool read_float(char *line, uint32_t *char_counter, float *float_ptr);
 
 // Non-blocking delay function used for general operation and suspend features.
 void delay_sec(float seconds, delaymode_t mode);
 
 float convert_delta_vector_to_unit_vector(float *vector);
 float limit_value_by_axis_maximum(float *max_value, float *unit_vec);
+
+// calculate checksum byte for EEPROM data
+uint8_t calc_checksum (uint8_t *data, uint32_t size);
 
 #endif

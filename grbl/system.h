@@ -94,10 +94,14 @@ typedef union {
 typedef union {
     uint8_t value;
     struct {
-        uint8_t reset       :1,
-                feed_hold   :1,
-                cycle_start :1,
-                safety_door_ajar :1;
+        uint8_t reset               :1,
+                feed_hold           :1,
+                cycle_start         :1,
+                safety_door_ajar    :1,
+				safety_door_pending :1,
+        		reserved5           :1,
+        		reserved6           :1,
+				deasserted          :1; // this flag is set if signals are deasserted. Note: do NOT pass on event to Grbl control_interrupt_handler if set.
     };
 } control_signals_t;
 
@@ -141,7 +145,7 @@ typedef struct {
     uint8_t r_override;                 // Rapids override value in percent
     uint8_t spindle_speed_ovr;          // Spindle speed value in percent
     spindle_stop_t spindle_stop_ovr;    // Tracks spindle stop override states
-    uint8_t report_ovr_counter;         // Tracks when to add override data to status reports.
+    int8_t report_ovr_counter;          // Tracks when to add override data to status reports.
     uint8_t report_wco_counter;         // Tracks when to add work coordinate offset data to status reports.
   #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
     parking_override_t override_ctrl;   // Tracks override control states.
