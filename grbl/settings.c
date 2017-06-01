@@ -158,6 +158,10 @@ void settings_restore (uint8_t restore_flag) {
 		settings.control_invert_mask = INVERT_CONTROL_PIN_MASK;
 	  #endif
 
+	  #ifdef INVERT_SPINDLE_ENABLE_PIN
+		settings.spindle_invert_mask.on = on;
+      #endif
+
 	    settings.steps_per_mm[X_AXIS] = DEFAULT_X_STEPS_PER_MM;
 	    settings.steps_per_mm[Y_AXIS] = DEFAULT_Y_STEPS_PER_MM;
 	    settings.steps_per_mm[Z_AXIS] = DEFAULT_Z_STEPS_PER_MM;
@@ -324,7 +328,7 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
                 settings.flags.invert_st_enable = int_value != 0;
                 break;
 
-            case Setting_InvertLimitPins: // Reset to ensure change. Immediate re-init may cause problems.
+            case Setting_LimitPinsInvertMask: // Reset to ensure change. Immediate re-init may cause problems.
                 settings.limit_invert_mask.value = int_value;
                 break;
 
@@ -352,6 +356,14 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
 
             case Setting_ControlInvertMask:
                 settings.control_invert_mask.value = int_value;
+                break;
+
+            case Setting_CoolantInvertMask:
+                settings.coolant_invert_mask.value = int_value;
+                break;
+
+            case Setting_SpindleInvertMask:
+                settings.spindle_invert_mask.value = int_value;
                 break;
 
             case Setting_SoftLimitsEnable:

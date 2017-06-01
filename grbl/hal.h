@@ -34,8 +34,6 @@
 #include "spindle_control.h"
 #include "eeprom.h"
 
-#define F_STEPTIMER 20000000 // stepper ISR timer clock frequency TODO: use hal.f_step_timer?
-
 //#define bit_true_atomic(var, bit) HWREGBITW(&var, bit) = 1;
 //#define bit_false_atomic(var, bit) HWREGBITW(&var, bit) = 0;
 

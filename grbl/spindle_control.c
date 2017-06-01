@@ -53,13 +53,15 @@ void _spindle_set_state(spindle_state_t state)
         } else {
           #ifdef VARIABLE_SPINDLE
           // NOTE: Assumes all calls to this function is when Grbl is not moving or must remain off.
+
+        	// alarm if going from CW to CCW directly in non-laser mode?
+
             if (settings.flags.laser_mode && state.ccw)
                 rpm = 0.0f; // TODO: May need to be rpm_min*(100/MAX_SPINDLE_SPEED_OVERRIDE);
 
-            spindle_set_speed(spindle_compute_pwm_value(rpm, sys.spindle_speed_ovr));
-          #endif
-
-          #if (defined(USE_SPINDLE_DIR_AS_ENABLE_PIN) && !defined(SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED)) || !defined(VARIABLE_SPINDLE)
+            hal.spindle_set_status(state, rpm, sys.spindle_speed_ovr);
+//            spindle_set_speed(spindle_compute_pwm_value(rpm, sys.spindle_speed_ovr));
+          #else
             hal.spindle_set_status(state, 0.0f, DEFAULT_SPINDLE_SPEED_OVERRIDE);
           #endif
         }

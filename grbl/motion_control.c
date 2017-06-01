@@ -89,7 +89,7 @@ void mc_arc (float *target, plan_line_data_t *pl_data, float *position, float *o
     float rt_axis1 = target[axis_1] - center_axis1;
 
     // CCW angle between position and target from circle center. Only one atan2() trig computation required.
-    float angular_travel = atan2(r_axis0 * rt_axis1 - r_axis1 * rt_axis0, r_axis0 * rt_axis0 + r_axis1 * rt_axis1);
+    float angular_travel = atan2f(r_axis0 * rt_axis1 - r_axis1 * rt_axis0, r_axis0 * rt_axis0 + r_axis1 * rt_axis1);
 
     if (is_clockwise_arc) { // Correct atan2 output per direction
         if (angular_travel >= -ARC_ANGULAR_TRAVEL_EPSILON)

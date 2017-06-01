@@ -59,8 +59,6 @@ int grbl_enter (void)
 
 // check and configure driver
 
-driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
-
 #ifdef VARIABLE_SPINDLE
 	driver_ok = driver_ok & hal.driver_cap.variable_spindle;
 #else
@@ -112,18 +110,6 @@ driver_ok = driver_ok & hal.f_step_timer == F_STEPTIMER;
 
 #ifdef DISABLE_CONTROL_PINS_PULL_UP_MASK
 	settings.control_disable_pullup_mask = DISABLE_CONTROL_PINS_PULL_UP_MASK;
-#endif
-
-#ifdef INVERT_SPINDLE_ENABLE_PIN
-	settings.flags.invert_spindle_enable = on;
-#endif
-
-#ifdef INVERT_COOLANT_FLOOD_PIN
-	settings.flags.invert_flood_pin = on;
-#endif
-
-#ifdef INVERT_COOLANT_MIST_PIN
-    settings.flags.invert_mist_pin = on;
 #endif
 
 #ifdef SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED

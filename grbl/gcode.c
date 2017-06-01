@@ -805,6 +805,9 @@ status_code_t gc_execute_line(char *line)
                     if((int_value = (uint8_t)hal.userdefined_mcode_validate(&gc_block, &value_words)))
                         FAIL((status_code_t)int_value);
                     break;
+
+                default:
+					break;
             }
     } // end gc_block.non_modal_command
 
@@ -1019,8 +1022,12 @@ status_code_t gc_execute_line(char *line)
                     if (isequal_position_vector(gc_state.position, gc_block.values.xyz))
                         FAIL(Status_GcodeInvalidTarget); // [Invalid target]
                     break;
-                }
-        } // end switch gc_block.modal.motion
+
+                default:
+					break;
+
+            } // end switch gc_block.modal.motion
+        }
     }
 
     // [21. Program flow ]: No error checks required.
@@ -1252,6 +1259,9 @@ status_code_t gc_execute_line(char *line)
             clear_vector(gc_state.coord_offset); // Disable G92 offsets by zeroing offset vector.
             system_flag_wco_change();
             break;
+
+        default:
+			break;
     }
 
     // [20. Motion modes ]:

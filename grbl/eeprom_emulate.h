@@ -22,6 +22,8 @@
 #ifndef __noeeprom_h__
 #define __noeeprom_h__
 
+#include "grbl.h"
+
 #define EEPROM_SIZE 1024
 
 typedef struct {

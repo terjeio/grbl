@@ -491,7 +491,7 @@ void protocol_exec_rt_system ()
                   break;
           }
 
-        } while(rt_exec = get_feed_ovr());
+        } while((rt_exec = get_feed_ovr()));
 
         plan_feed_override(new_f_override, new_r_override);
     }
@@ -531,7 +531,7 @@ void protocol_exec_rt_system ()
                   break;
 
               case CMD_COOLANT_MIST_OVR_TOGGLE:
-                  if (!settings.flags.disable_M7 && (sys.state == STATE_IDLE) || (sys.state & (STATE_CYCLE | STATE_HOLD))) {
+                  if (!settings.flags.disable_M7 && ((sys.state == STATE_IDLE) || (sys.state & (STATE_CYCLE | STATE_HOLD)))) {
                       coolant_state.mist = !coolant_state.mist;
                   }
                   break;

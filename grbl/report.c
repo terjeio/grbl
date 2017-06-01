@@ -189,13 +189,15 @@ void report_grbl_settings() {
     report_util_uint8_setting(Setting_StepInvertMask, settings.step_invert_mask.value);
     report_util_uint8_setting(Setting_DirInvertMask, settings.dir_invert_mask.value);
     report_util_uint8_setting(Setting_InvertStepperEnable, settings.flags.invert_st_enable);
-    report_util_uint8_setting(Setting_InvertLimitPins, settings.limit_invert_mask.value);
+    report_util_uint8_setting(Setting_LimitPinsInvertMask, settings.limit_invert_mask.value);
     report_util_uint8_setting(Setting_InvertProbePin, settings.flags.invert_probe_pin);
     report_util_uint8_setting(Setting_StatusReportMask, settings.status_report_mask.value);
     report_util_float_setting(Setting_JunctionDeviation, settings.junction_deviation, N_DECIMAL_SETTINGVALUE);
     report_util_float_setting(Setting_ArcTolerance, settings.arc_tolerance, N_DECIMAL_SETTINGVALUE);
     report_util_uint8_setting(Setting_ReportInches, settings.flags.report_inches);
     report_util_uint8_setting(Setting_ControlInvertMask, settings.control_invert_mask.value);
+    report_util_uint8_setting(Setting_CoolantInvertMask, settings.coolant_invert_mask.value);
+    report_util_uint8_setting(Setting_SpindleInvertMask, settings.spindle_invert_mask.value);
     report_util_uint8_setting(Setting_SoftLimitsEnable, settings.flags.soft_limit_enable);
     report_util_uint8_setting(Setting_HardLimitsEnable, settings.flags.hard_limit_enable);
     report_util_uint8_setting(Setting_HomingEnable, settings.flags.homing_enable);
@@ -347,6 +349,9 @@ void report_gcode_modes ()
             case ProgramFlow_CompletedM30:
                 print_uint8_base10((uint8_t)gc_state.modal.program_flow);
                 break;
+
+            default:
+				break;
         }
     }
 

@@ -22,6 +22,8 @@
 #ifndef limits_h
 #define limits_h
 
+#include "nuts_bolts.h"
+
 #define limits_get_state() hal.limits_get_state()
 #define limits_init() hal.limits_enable(true)
 #define limits_disable() hal.limits_enable(false)

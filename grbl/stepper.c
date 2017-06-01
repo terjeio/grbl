@@ -103,6 +103,18 @@ typedef struct {
 
 static stepper_t st;
 
+#ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+typedef struct {
+	uint32_t level_1;
+	uint32_t level_2;
+	uint32_t level_3;
+} amass_t;
+
+static amass_t amass;
+#endif
+
+static float f_steptimer;
+
 // Step segment ring buffer indices
 static volatile uint32_t segment_buffer_tail;
 static uint32_t segment_buffer_head;
@@ -192,16 +204,10 @@ static st_prep_t prep;
 // enabled. Startup init and limits call this function but shouldn't start the cycle.
 void st_wake_up ()
 {
-    // Enable stepper drivers.
-    hal.stepper_enable(true);
-
     // Initialize stepper output bits to ensure first ISR call does not step.
     st.step_outbits.value = 0;
-  #ifdef  VARIABLE_SPINDLE
-    st.spindle_pwm  = hal.spindle_pwm_off;
-  #endif
-    hal.stepper_wake_up();
 
+    hal.stepper_wake_up();
 }
 
 
@@ -412,6 +418,17 @@ void st_reset ()
     segment_buffer_head = 0; // empty = tail
     segment_next_head = 1;
 
+#ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+    // TODO: move to driver?
+    // AMASS_LEVEL0: Normal operation. No AMASS. No upper cutoff frequency. Starts at LEVEL1 cutoff frequency.
+    // Defined as step timer frequency / Cutoff frequency in Hz
+    amass.level_1 = hal.f_step_timer / 8000;
+    amass.level_2 = hal.f_step_timer / 4000;
+    amass.level_3 = hal.f_step_timer / 2000;
+#endif
+
+	f_steptimer = (float)hal.f_step_timer * 60.f;
+
     // Initialize step and direction port pins.
     hal.stepper_set_outputs(st.step_outbits);
     hal.stepper_set_directions(st.dir_outbits);
@@ -605,8 +622,8 @@ void st_prep_buffer()
                 }
 
                 nominal_speed = plan_compute_profile_nominal_speed(pl_block);
-                float nominal_speed_sqr = nominal_speed*nominal_speed;
-                float intersect_distance = 0.5f * (pl_block->millimeters+inv_2_accel * (pl_block->entry_speed_sqr - exit_speed_sqr));
+                float nominal_speed_sqr = nominal_speed * nominal_speed;
+                float intersect_distance = 0.5f * (pl_block->millimeters + inv_2_accel * (pl_block->entry_speed_sqr - exit_speed_sqr));
 
                 if (pl_block->entry_speed_sqr > nominal_speed_sqr) { // Only occurs during override reductions.
 
@@ -840,15 +857,15 @@ void st_prep_buffer()
         float inv_rate = dt / (last_n_steps_remaining - step_dist_remaining); // Compute adjusted step rate inverse
 
         // Compute CPU cycles per step for the prepped segment.
-        uint32_t cycles = (uint32_t)ceilf((F_STEPTIMER * 60) * inv_rate); // (cycles/step)
+        uint32_t cycles = (uint32_t)ceilf(f_steptimer * inv_rate); // (cycles/step)
 
       #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
         // Compute step timing and multi-axis smoothing level.
         // NOTE: AMASS overdrives the timer with each level, so only one prescalar is required.
-        if (cycles < AMASS_LEVEL1)
+        if (cycles < amass.level_1)
             prep_segment->amass_level = 0;
         else {
-            prep_segment->amass_level = cycles < AMASS_LEVEL2 ? 1 : (cycles < AMASS_LEVEL3 ? 2 : 3);
+            prep_segment->amass_level = cycles < amass.level_2 ? 1 : (cycles < amass.level_3 ? 2 : 3);
             cycles >>= prep_segment->amass_level;
             prep_segment->n_step <<= prep_segment->amass_level;
         }

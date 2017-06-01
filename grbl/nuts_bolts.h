@@ -22,13 +22,18 @@
 #ifndef nuts_bolts_h
 #define nuts_bolts_h
 
+#include <stdint.h>
+#include <stdbool.h>
+
 #ifndef true
 #define false 0
 #define true 1
 #endif
 
 #define SOME_LARGE_VALUE 1.0E+38f
+#ifndef M_PI
 #define M_PI 3.14159265358979323846f
+#endif
 
 // Axis array index values. Must start with 0 and be continuous.
 #define N_AXIS 3 // Number of axes

@@ -65,13 +65,15 @@ typedef enum {
     Setting_StepInvertMask = 2,
     Setting_DirInvertMask = 3,
     Setting_InvertStepperEnable = 4,
-    Setting_InvertLimitPins = 5,
+    Setting_LimitPinsInvertMask = 5,
     Setting_InvertProbePin = 6,
     Setting_StatusReportMask = 10,
     Setting_JunctionDeviation = 11,
     Setting_ArcTolerance = 12,
     Setting_ReportInches = 13,
     Setting_ControlInvertMask = 14,
+    Setting_CoolantInvertMask = 15,
+    Setting_SpindleInvertMask = 16,
     Setting_SoftLimitsEnable = 20,
     Setting_HardLimitsEnable = 21,
     Setting_HomingEnable = 22,
@@ -107,9 +109,6 @@ typedef union {
                  homing_enable     :1,
                  soft_limit_enable :1,
                  invert_probe_pin  :1,
-                 invert_flood_pin  :1,
-                 invert_mist_pin   :1,
-                 invert_spindle_enable :1,
                  spindle_disable_with_zero_speed :1,
                  disable_probe_pullup :1,
 				 disable_M7           :1;
@@ -158,6 +157,8 @@ typedef struct {
     axes_signals_t limit_disable_pullup_mask;
     axes_signals_t step_invert_mask;
     axes_signals_t dir_invert_mask;
+    coolant_state_t coolant_invert_mask;
+    spindle_state_t spindle_invert_mask;
     uint8_t homing_dir_mask;
     uint16_t homing_debounce_delay;
     uint8_t pulse_microseconds;
