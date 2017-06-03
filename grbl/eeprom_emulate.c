@@ -71,11 +71,11 @@ static bool memcpy_from_ram_with_checksum (uint8_t *destination, uint32_t source
 bool eeprom_emu_init()
 {
 
-    uint32_t idx = EEPROM_SIZE;
+    uint32_t idx = GRBL_EEPROM_SIZE;
 
     memcpy(&physical_eeprom, &hal.eeprom, sizeof(eeprom_io_t)); // save pointers to physical EEPROM handler functions
 
-    if((noepromdata = malloc(EEPROM_SIZE)) != 0) {
+    if((noepromdata = malloc(GRBL_EEPROM_SIZE)) != 0) {
 
         if(physical_eeprom.type == EEPROM_Physical) {
 

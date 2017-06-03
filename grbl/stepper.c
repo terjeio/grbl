@@ -206,6 +206,7 @@ void st_wake_up ()
 {
     // Initialize stepper output bits to ensure first ISR call does not step.
     st.step_outbits.value = 0;
+    sys.steppers_deenergize = false;
 
     hal.stepper_wake_up();
 }
@@ -214,20 +215,18 @@ void st_wake_up ()
 // Stepper shutdown
 void st_go_idle ()
 {
-    bool pin_state = false; // Keep enabled.
+
     // Disable Stepper Driver Interrupt. Allow Stepper Port Reset Interrupt to finish, if active.
 
     hal.stepper_go_idle();
 
     // Set stepper driver idle state, disabled or enabled, depending on settings and circumstances.
-    if (((settings.stepper_idle_lock_time != 0xff) || sys_rt_exec_alarm || sys.state == STATE_SLEEP) && sys.state != STATE_HOMING) {
+    if (((settings.stepper_idle_lock_time != 0xff) || sys_rt_exec_alarm || sys.state == STATE_SLEEP) && sys.state != STATE_HOMING)
         // Force stepper dwell to lock axes for a defined amount of time to ensure the axes come to a complete
         // stop and not drift from residual inertial forces at the end of the last movement.
-        delay_ms(settings.stepper_idle_lock_time);
-        pin_state = true; // Override. Disable steppers.
-    }
-
-    hal.stepper_enable(pin_state);
+        sys.steppers_deenergize = true;
+    else
+    	hal.stepper_enable(false);
 }
 
 

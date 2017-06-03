@@ -24,8 +24,6 @@
 
 #include "grbl.h"
 
-#define EEPROM_SIZE 1024
-
 typedef struct {
     bool is_dirty;
     bool global_settings;

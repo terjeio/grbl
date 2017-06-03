@@ -22,6 +22,8 @@
 #ifndef eeprom_h
 #define eeprom_h
 
+#define GRBL_EEPROM_SIZE 1024
+
 typedef enum {
     EEPROM_None = 0,
     EEPROM_Physical,

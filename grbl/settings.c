@@ -151,16 +151,28 @@ void settings_restore (uint8_t restore_flag) {
 	  #endif
 
       #ifdef INVERT_LIMIT_PIN_MASK
-	    settings.limit_invert_mask = INVERT_LIMIT_PIN_MASK;
+	    settings.limit_invert_mask.value = INVERT_LIMIT_PIN_MASK;
       #endif
 
 	  #ifdef INVERT_CONTROL_PIN_MASK
-		settings.control_invert_mask = INVERT_CONTROL_PIN_MASK;
+		settings.control_invert_mask.value = INVERT_CONTROL_PIN_MASK;
 	  #endif
 
 	  #ifdef INVERT_SPINDLE_ENABLE_PIN
 		settings.spindle_invert_mask.on = on;
       #endif
+
+	  #ifdef DISABLE_LIMIT_PINS_PULL_UP_MASK
+		settings.limit_disable_pullup_mask.value = DISABLE_LIMIT_PINS_PULL_UP_MASK;
+	  #endif
+
+	  #ifdef DISABLE_PROBE_PIN_PULL_UP
+		settings.flags.disable_probe_pullup = on;
+	  #endif
+
+	  #ifdef DISABLE_CONTROL_PINS_PULL_UP_MASK
+		settings.control_disable_pullup_mask.value = DISABLE_CONTROL_PINS_PULL_UP_MASK;
+	  #endif
 
 	    settings.steps_per_mm[X_AXIS] = DEFAULT_X_STEPS_PER_MM;
 	    settings.steps_per_mm[Y_AXIS] = DEFAULT_Y_STEPS_PER_MM;
@@ -366,7 +378,19 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
                 settings.spindle_invert_mask.value = int_value;
                 break;
 
-            case Setting_SoftLimitsEnable:
+            case Setting_ControlPullUpDisableMask:
+				settings.control_disable_pullup_mask.value = int_value;
+				break;
+
+            case Setting_LimitPullUpDisableMask:
+				settings.limit_disable_pullup_mask.value = int_value;
+				break;
+
+			case Setting_ProbePullUpDisable:
+				settings.flags.disable_probe_pullup = int_value != 0;
+				break;
+
+			case Setting_SoftLimitsEnable:
                 if (int_value && !settings.flags.homing_enable)
                     return Status_SoftLimitError;
                 settings.flags.soft_limit_enable = int_value != 0;

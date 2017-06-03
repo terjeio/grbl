@@ -138,6 +138,7 @@ typedef struct {
     suspend_t suspend;                  // System suspend bitflag variable that manages holds, cancels, and safety door.
     bool soft_limit;                    // Tracks soft limit errors for the state machine. (boolean)
     bool block_delete_enabled;          // Set to true to enable block delete
+    volatile bool steppers_deenergize;			// Set to true to deenergize stepperes
     step_control_t step_control;        // Governs the step segment generator depending on system state.
     bool probe_succeeded;               // Tracks if last probing cycle was successful.
     axes_signals_t homing_axis_lock;    // Locks axes when limits engage. Used as an axis motion mask in the stepper ISR.

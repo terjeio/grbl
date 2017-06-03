@@ -100,18 +100,6 @@ int grbl_enter (void)
 
 // TODO: settings to be made configurable via $nn=
 
-#ifdef DISABLE_LIMIT_PINS_PULL_UP_MASK
-	settings.limit_disable_pullup_mask = DISABLE_LIMIT_PINS_PULL_UP_MASK;
-#endif
-
-#ifdef DISABLE_PROBE_PIN_PULL_UP
-	settings.flags.disable_probe_pullup = on;
-#endif
-
-#ifdef DISABLE_CONTROL_PINS_PULL_UP_MASK
-	settings.control_disable_pullup_mask = DISABLE_CONTROL_PINS_PULL_UP_MASK;
-#endif
-
 #ifdef SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED
     settings.flags.spindle_disable_with_zero_speed = on;
 #endif

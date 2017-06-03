@@ -251,6 +251,14 @@ void protocol_exec_rt_system ()
 {
     uint8_t rt_exec; // Temp variable to avoid calling volatile multiple times.
 
+    if(sys.steppers_deenergize) {
+		// Force stepper dwell to lock axes for a defined amount of time to ensure the axes come to a complete
+		// stop and not drift from residual inertial forces at the end of the last movement.
+		delay_ms(settings.stepper_idle_lock_time);
+		hal.stepper_enable(false);
+		sys.steppers_deenergize = false;
+    }
+
     if (sys_rt_exec_alarm && (rt_exec = system_clear_exec_alarm())) { // Enter only if any bit flag is true
         // System alarm. Everything has shutdown by something that has gone severely wrong. Report
         // the source of the error to the user. If critical, Grbl disables by entering an infinite

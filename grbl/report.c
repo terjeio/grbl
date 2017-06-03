@@ -198,6 +198,9 @@ void report_grbl_settings() {
     report_util_uint8_setting(Setting_ControlInvertMask, settings.control_invert_mask.value);
     report_util_uint8_setting(Setting_CoolantInvertMask, settings.coolant_invert_mask.value);
     report_util_uint8_setting(Setting_SpindleInvertMask, settings.spindle_invert_mask.value);
+    report_util_uint8_setting(Setting_ControlPullUpDisableMask, settings.control_disable_pullup_mask.value);
+    report_util_uint8_setting(Setting_LimitPullUpDisableMask, settings.limit_disable_pullup_mask.value);
+    report_util_uint8_setting(Setting_ProbePullUpDisable, settings.flags.disable_probe_pullup);
     report_util_uint8_setting(Setting_SoftLimitsEnable, settings.flags.soft_limit_enable);
     report_util_uint8_setting(Setting_HardLimitsEnable, settings.flags.hard_limit_enable);
     report_util_uint8_setting(Setting_HomingEnable, settings.flags.homing_enable);
