@@ -86,7 +86,8 @@ typedef union {
         uint8_t end_motion         :1,
                 execute_hold       :1,
                 execute_sys_motion :1,
-                update_spindle_pwm :1;
+                update_spindle_pwm :1,
+				unassigned         :4;
     };
 } step_control_t;
 
@@ -98,9 +99,9 @@ typedef union {
                 feed_hold           :1,
                 cycle_start         :1,
                 safety_door_ajar    :1,
-				safety_door_pending :1,
+				block_delete		:1,
         		reserved5           :1,
-        		reserved6           :1,
+				safety_door_pending :1,
 				deasserted          :1; // this flag is set if signals are deasserted. Note: do NOT pass on event to Grbl control_interrupt_handler if set.
     };
 } control_signals_t;
@@ -126,7 +127,8 @@ typedef union {
         uint8_t enabled       :1,
                 initiate      :1,
                 restore       :1,
-                restore_cycle :1;
+                restore_cycle :1,
+				unassigned    :4;
     };
 } spindle_stop_t;
 

@@ -62,7 +62,7 @@ int grbl_enter (void)
 #ifdef VARIABLE_SPINDLE
 	driver_ok = driver_ok & hal.driver_cap.variable_spindle;
 #else
-	hal.driver_cap.variable_spindle = false;
+	hal.driver_cap.variable_spindle = off;
 #endif
 
 #ifdef ENABLE_M7
@@ -98,11 +98,17 @@ int grbl_enter (void)
     driver_ok = driver_ok & hal.driver_cap.safety_door;
 #endif
 
+#if AXIS_N_SETTINGS > 4
+    driver_ok = driver_ok & hal.driver_cap.stepper_current_control;
+#endif
+
 // TODO: settings to be made configurable via $nn=
 
 #ifdef SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED
     settings.flags.spindle_disable_with_zero_speed = on;
 #endif
+
+// end settings to be made configurable
 
     driver_ok = driver_ok && hal.driver_setup(&settings);
 

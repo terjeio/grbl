@@ -25,9 +25,14 @@
 typedef union {
     uint8_t value;
     struct {
-        uint8_t on      :1,
-                ccw     :1,
-				dynamic :1;
+        uint8_t on        :1,
+                ccw       :1,
+				reserved2 :1,
+				reserved3 :1,
+				reserved4 :1,
+				reserved5 :1,
+				reserved6 :1,
+				dynamic   :1;
     };
 } spindle_state_t;
 

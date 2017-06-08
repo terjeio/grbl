@@ -186,6 +186,13 @@ void settings_restore (uint8_t restore_flag) {
 	    settings.max_travel[X_AXIS] = (-DEFAULT_X_MAX_TRAVEL);
 	    settings.max_travel[Y_AXIS] = (-DEFAULT_Y_MAX_TRAVEL);
 	    settings.max_travel[Z_AXIS] = (-DEFAULT_Z_MAX_TRAVEL);
+
+	  #if AXIS_N_SETTINGS > 4
+	    settings.current[X_AXIS] = DEFAULT_X_CURRENT;
+	    settings.current[Y_AXIS] = DEFAULT_Y_CURRENT;
+	    settings.current[Z_AXIS] = DEFAULT_Z_CURRENT;
+	  #endif
+
 	    settings.spindle_pwm_freq = DEFAULT_SPINDLE_PWM_FREQ;
 	    settings.spindle_pwm_off_value = DEFAULT_SPINDLE_PWM_OFF_VALUE;
 	    settings.spindle_pwm_min_value = DEFAULT_SPINDLE_PWM_MIN_VALUE;
@@ -302,6 +309,13 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
                     case AxisSetting_MaxTravel:
                         settings.max_travel[parameter] = -value; // Store as negative for grbl internal use.
                         break;
+
+				  #if AXIS_N_SETTINGS > 4
+                    case AxisSetting_StepperCurrent:
+                    	settings.current[parameter] = value;
+                    	break;
+				  #endif
+
                 }
                 break; // Exit while-loop after setting has been configured and proceed to the EEPROM write call.
 
@@ -379,7 +393,7 @@ status_code_t settings_store_global_setting (uint8_t parameter, float value) {
                 break;
 
             case Setting_ControlPullUpDisableMask:
-				settings.control_disable_pullup_mask.value = int_value;
+				settings.control_disable_pullup_mask.value = int_value & 0x0F;
 				break;
 
             case Setting_LimitPullUpDisableMask:

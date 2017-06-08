@@ -43,7 +43,8 @@
 // #define A_AXIS 3
 #define AXES_BITMASK ((1 << X_AXIS )|(1 << Y_AXIS)|(1 << Z_AXIS))
 
-#define delay_ms(d) hal.delay_ms(d)
+#define delay_ms(d) hal.delay_milliseconds(d, 0)
+#define delay_ms_with_callback(d, fn) hal.delay_milliseconds(d, fn)
 
 // CoreXY motor assignments. DO NOT ALTER.
 // NOTE: If the A and B motor axis bindings are changed, this effects the CoreXY equations.

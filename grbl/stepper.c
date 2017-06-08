@@ -40,7 +40,8 @@ typedef union {
         uint8_t recalculate        :1,
                 hold_partial_block :1,
                 parking            :1,
-                decel_ovveride     :1;
+                decel_ovveride     :1,
+				unassigned         :4;
     };
 } prep_flags_t;
 
@@ -113,7 +114,8 @@ typedef struct {
 static amass_t amass;
 #endif
 
-static float f_steptimer;
+// Stepper timer ticks per minute
+static float cycles_per_min;
 
 // Step segment ring buffer indices
 static volatile uint32_t segment_buffer_tail;
@@ -199,12 +201,22 @@ static st_prep_t prep;
   are shown and defined in the above illustration.
 */
 
+// Callback from delay to deenergize steppers after movement, might been cancelled
+void st_deenergize ()
+{
+	if(sys.steppers_deenergize) {
+		hal.stepper_enable(false);
+		sys.steppers_deenergize = false;
+	}
+}
+
 
 // Stepper state initialization. Cycle should only start if the st.cycle_start flag is
 // enabled. Startup init and limits call this function but shouldn't start the cycle.
 void st_wake_up ()
 {
-    // Initialize stepper output bits to ensure first ISR call does not step.
+    // Initialize stepper output bits to ensure first ISR call does not step
+    // and cancel any pending steppers deenergize
     st.step_outbits.value = 0;
     sys.steppers_deenergize = false;
 
@@ -221,11 +233,12 @@ void st_go_idle ()
     hal.stepper_go_idle();
 
     // Set stepper driver idle state, disabled or enabled, depending on settings and circumstances.
-    if (((settings.stepper_idle_lock_time != 0xff) || sys_rt_exec_alarm || sys.state == STATE_SLEEP) && sys.state != STATE_HOMING)
+    if (((settings.stepper_idle_lock_time != 0xff) || sys_rt_exec_alarm || sys.state == STATE_SLEEP) && sys.state != STATE_HOMING) {
         // Force stepper dwell to lock axes for a defined amount of time to ensure the axes come to a complete
         // stop and not drift from residual inertial forces at the end of the last movement.
         sys.steppers_deenergize = true;
-    else
+        delay_ms_with_callback(settings.stepper_idle_lock_time, st_deenergize);
+    } else
     	hal.stepper_enable(false);
 }
 
@@ -426,7 +439,7 @@ void st_reset ()
     amass.level_3 = hal.f_step_timer / 2000;
 #endif
 
-	f_steptimer = (float)hal.f_step_timer * 60.f;
+	cycles_per_min = (float)hal.f_step_timer * 60.f;
 
     // Initialize step and direction port pins.
     hal.stepper_set_outputs(st.step_outbits);
@@ -856,7 +869,7 @@ void st_prep_buffer()
         float inv_rate = dt / (last_n_steps_remaining - step_dist_remaining); // Compute adjusted step rate inverse
 
         // Compute CPU cycles per step for the prepped segment.
-        uint32_t cycles = (uint32_t)ceilf(f_steptimer * inv_rate); // (cycles/step)
+        uint32_t cycles = (uint32_t)ceilf(cycles_per_min * inv_rate); // (cycles/step)
 
       #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
         // Compute step timing and multi-axis smoothing level.

@@ -244,6 +244,12 @@ void report_grbl_settings() {
                 case AxisSetting_MaxTravel:
                     report_util_float_setting((setting_type_t)(val + idx), -settings.max_travel[idx], N_DECIMAL_SETTINGVALUE);
                     break;
+
+              #if AXIS_N_SETTINGS > 4
+                case AxisSetting_StepperCurrent:
+                    report_util_float_setting((setting_type_t)(val + idx), settings.current[idx], N_DECIMAL_SETTINGVALUE);
+                    break;
+			  #endif
             }
         }
         val += AXIS_SETTINGS_INCREMENT;

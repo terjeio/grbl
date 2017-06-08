@@ -56,6 +56,7 @@
 // #define SETTING_INDEX_G92    N_COORDINATE_SYSTEM+2  // Coordinate offset (G92.2,G92.3 not supported)
 
 // Define Grbl axis settings numbering scheme. Starts at Setting_AxisSettingsBase, every INCREMENT, over N_SETTINGS.
+// change AXIS_N_SETTINGS to 5 to enable stepper current settings
 #define AXIS_N_SETTINGS          4
 #define AXIS_SETTINGS_INCREMENT  10  // Must be greater than the number of axis settings
 
@@ -99,7 +100,8 @@ typedef enum {
     AxisSetting_StepsPerMM = 0,
     AxisSetting_MaxRate = 1,
     AxisSetting_Acceleration = 2,
-    AxisSetting_MaxTravel = 3
+    AxisSetting_MaxTravel = 3,
+    AxisSetting_StepperCurrent = 4
 } axis_setting_type_t;
 
 typedef union {
@@ -114,20 +116,22 @@ typedef union {
                  invert_probe_pin  :1,
                  spindle_disable_with_zero_speed :1,
                  disable_probe_pullup :1,
-				 disable_M7           :1;
+				 disable_M7           :1,
+				 unassigned           :6;
     };
 } settingflags_t;
 
 typedef union {
     uint8_t value;
     struct {
-        uint8_t position_type :1,
-                buffer_state  :1,
-				line_numbers  :1,
-				feed_speed    :1,
-				pin_state     :1,
+        uint8_t position_type     :1,
+                buffer_state      :1,
+				line_numbers      :1,
+				feed_speed        :1,
+				pin_state         :1,
 				work_coord_offset :1,
-				overrrides    :1;
+				overrrides        :1,
+				unassigned        :1;
     };
 } reportmask_t;
 
@@ -140,6 +144,9 @@ typedef struct {
     float max_rate[N_AXIS];
     float acceleration[N_AXIS];
     float max_travel[N_AXIS];
+  #if AXIS_N_SETTINGS > 4
+    float current[N_AXIS];
+  #endif
     float junction_deviation;
     float arc_tolerance;
     float homing_feed_rate;

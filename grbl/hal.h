@@ -41,16 +41,21 @@
 typedef union {
     uint16_t value;
     struct {
-        uint16_t mist_control      :1,
-                 variable_spindle  :1,
-                 safety_door       :1,
-                 spindle_dir       :1,
-                 software_debounce :1,
-                 step_pulse_delay  :1,
-                 limits_pull_up    :1,
-                 control_pull_up   :1,
-                 probe_pull_up     :1,
-                 amass_level       :2; // 0...3
+        uint16_t mist_control            :1,
+                 variable_spindle        :1,
+                 safety_door             :1,
+                 spindle_dir             :1,
+                 software_debounce       :1,
+                 step_pulse_delay        :1,
+                 limits_pull_up          :1,
+                 control_pull_up         :1,
+                 probe_pull_up           :1,
+                 amass_level             :2, // 0...3
+        		 stepper_current_control :1,
+        		 unused12				 :1,
+        		 unused13				 :1,
+        		 unused14            	 :1,
+        		 unused15				 :1;
     };
 } driver_cap_t;
 
@@ -66,7 +71,7 @@ typedef struct HAL {
     axes_signals_t (*limits_get_state)(void);
 	void (*coolant_set_state)(coolant_state_t mode);
 	coolant_state_t (*coolant_get_state)(void);
-	void (*delay_ms)(uint32_t ms);
+	void (*delay_milliseconds)(uint32_t ms, void (*callback)(void));
 
 	bool (*probe_get_state)(void);
 	void (*probe_configure_invert_mask)(bool is_probe_away);
