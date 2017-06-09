@@ -40,8 +40,24 @@
 #define X_AXIS 0 // Axis indexing value.
 #define Y_AXIS 1
 #define Z_AXIS 2
-// #define A_AXIS 3
+#if N_AXIS > 3
+#define A_AXIS 3
+#endif
+#if N_AXIS > 4
+#define B_AXIS 4
+#endif
+#if N_AXIS == 6
+#define C_AXIS 5
+#define AXES_BITMASK ((1 << X_AXIS )|(1 << Y_AXIS)|(1 << Z_AXIS)|(1 << A_AXIS)|(1 << B_AXIS)|(1 << C_AXIS))
+#endif
+
+#if N_AXIS == 3
 #define AXES_BITMASK ((1 << X_AXIS )|(1 << Y_AXIS)|(1 << Z_AXIS))
+#elif N_AXIS == 4
+#define AXES_BITMASK ((1 << X_AXIS )|(1 << Y_AXIS)|(1 << Z_AXIS)|(1 << A_AXIS))
+#elif N_AXIS == 5
+#define AXES_BITMASK ((1 << X_AXIS )|(1 << Y_AXIS)|(1 << Z_AXIS)|(1 << A_AXIS)|(1 << B_AXIS))
+#endif
 
 #define delay_ms(d) hal.delay_milliseconds(d, 0)
 #define delay_ms_with_callback(d, fn) hal.delay_milliseconds(d, fn)

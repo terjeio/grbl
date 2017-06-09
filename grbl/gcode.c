@@ -373,9 +373,30 @@ status_code_t gc_execute_line(char *line)
 
                 switch(letter) {
 
-                    // case 'A': // Not supported
-                    // case 'B': // Not supported
-                    // case 'C': // Not supported
+                  #ifdef A_AXIS
+					case 'A':
+						word_bit.parameter = Word_A;
+						gc_block.values.xyz[A_AXIS] = value;
+						bit_true(axis_words, bit(A_AXIS));
+						break;
+                  #endif
+
+				  #ifdef B_AXIS
+					case 'B':
+						word_bit.parameter = Word_B;
+						gc_block.values.xyz[B_AXIS] = value;
+						bit_true(axis_words, bit(B_AXIS));
+						break;
+                  #endif
+
+				  #ifdef C_AXIS
+					case 'C':
+						word_bit.parameter = Word_C;
+						gc_block.values.xyz[C_AXIS] = value;
+						bit_true(axis_words, bit(C_AXIS));
+						break;
+                 #endif
+
                     // case 'D': // Not supported
 
                     case 'F':
@@ -1040,7 +1061,7 @@ status_code_t gc_execute_line(char *line)
         bit_false(value_words, (bit(Word_N)|bit(Word_F)|bit(Word_S)|bit(Word_T))); // Remove single-meaning value words.
 
     if (axis_command)
-        bit_false(value_words, (bit(Word_X)|bit(Word_Y)|bit(Word_Z))); // Remove axis words.
+        bit_false(value_words, AXIS_WORDS_MASK); // Remove axis words.
 
     if (value_words)
         FAIL(Status_GcodeUnusedWords); // [Unused words]

@@ -222,7 +222,7 @@ void limits_go_home (uint8_t cycle_mask)
                 }
             }
 
-        } while (STEP_MASK & axislock);
+        } while (AXES_BITMASK & axislock);
 
         st_reset(); // Immediately force kill steppers and reset step segment buffer.
         delay_ms(settings.homing_debounce_delay); // Delay to allow transient dynamics to dissipate.

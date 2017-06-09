@@ -250,6 +250,9 @@ void report_grbl_settings() {
                     report_util_float_setting((setting_type_t)(val + idx), settings.current[idx], N_DECIMAL_SETTINGVALUE);
                     break;
 			  #endif
+
+                default: // for stopping compiler warning
+					break;
             }
         }
         val += AXIS_SETTINGS_INCREMENT;
@@ -652,6 +655,18 @@ void report_realtime_status ()
 					serial_write('Y');
 				if (lim_pin_state.z)
 					serial_write('Z');
+			  #ifdef A_AXIS
+				if (lim_pin_state.a)
+					serial_write('A');
+			  #endif
+			  #ifdef B_AXIS
+				if (lim_pin_state.b)
+					serial_write('B');
+			  #endif
+			  #ifdef C_AXIS
+				if (lim_pin_state.c)
+					serial_write('C');
+			  #endif
 			}
 
 			if (ctrl_pin_state.value) {

@@ -97,7 +97,7 @@ typedef enum {
 
 // Define parameter word mapping.
 typedef enum {
-    Word_F = 0,
+	Word_F = 0,
     Word_I,
     Word_J,
     Word_K,
@@ -111,7 +111,20 @@ typedef enum {
     Word_Y,
     Word_Z,
     Word_Q,
+	Word_A,
+	Word_B,
+	Word_C
 } parameter_word_t;
+
+#if N_AXIS == 3
+#define AXIS_WORDS_MASK ((1 << Word_X)|(1 << Word_Y)|(1 << Word_Z))
+#elif N_AXIS == 4
+#define AXIS_WORDS_MASK ((1 << Word_X)|(1 << Word_Y)|(1 << Word_Z)||(1 << Word_A))
+#elif N_AXIS == 5
+#define AXIS_WORDS_MASK ((1 << Word_X)|(1 << Word_Y)|(1 << Word_Z)||(1 << Word_A)|(1 << Word_B))
+#else
+#define AXIS_WORDS_MASK ((1 << Word_X)|(1 << Word_Y)|(1 << Word_Z)||(1 << Word_A)|(1 << Word_B)|(1 << Word_C))
+#endif
 
 typedef union {
     parameter_word_t parameter;

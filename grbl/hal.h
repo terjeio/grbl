@@ -110,7 +110,7 @@ typedef struct HAL {
 	status_code_t (*userdefined_mcode_validate)(parser_block_t *gc_block, uint16_t *value_words);
     void (*userdefined_mcode_execute)(uint8_t state, parser_block_t *gc_block);
     void (*userdefined_rt_command_execute)(uint8_t cmd);
-    bool (*get_position)(int32_t (*position)[3]);
+    bool (*get_position)(int32_t (*position)[N_AXIS]);
     eeprom_io_t eeprom;
 
 	// callbacks - set up by library before MCU init

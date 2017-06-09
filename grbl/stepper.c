@@ -2,6 +2,7 @@
   stepper.c - stepper motor driver: executes motion plans using stepper motors
   Part of Grbl
 
+  Copyright (c) 2016-2017 Terje Io
   Copyright (c) 2011-2016 Sungeun K. Jeon for Gnea Research LLC
   Copyright (c) 2009-2011 Simen Svale Skogsrud
 
@@ -82,24 +83,34 @@ static segment_t segment_buffer[SEGMENT_BUFFER_SIZE];
 
 // Stepper ISR data struct. Contains the running data for the main stepper ISR.
 typedef struct {
-  // Used by the bresenham line algorithm
-  uint32_t counter_x,        // Counter variables for the bresenham line tracer
-           counter_y,
-           counter_z;
-  uint8_t execute_step;     // Flags step execution for each interrupt.
-  uint8_t step_pulse_time;  // Step pulse reset time after step rise
-  axes_signals_t step_outbits;         // The next stepping-bits to be output
-  axes_signals_t dir_outbits;
-  #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
-    uint32_t steps[N_AXIS];
-  #endif
-  #ifdef VARIABLE_SPINDLE
-    uint32_t spindle_pwm;
-  #endif
-  uint16_t step_count;       // Steps remaining in line segment motion
-  uint8_t exec_block_index; // Tracks the current st_block index. Change indicates new block.
-  st_block_t *exec_block;   // Pointer to the block data for the segment being executed
-  segment_t *exec_segment;  // Pointer to the segment being executed
+	// Used by the bresenham line algorithm
+	uint32_t counter_x,        // Counter variables for the bresenham line tracer
+		     counter_y,
+		     counter_z
+	#ifdef A_AXIS
+		   , counter_a
+	#endif
+	#ifdef B_AXIS
+		  , counter_b
+	#endif
+	#ifdef C_AXIS
+		  , counter_c
+	#endif
+;
+	uint8_t execute_step;     // Flags step execution for each interrupt.
+	uint8_t step_pulse_time;  // Step pulse reset time after step rise
+	axes_signals_t step_outbits;         // The next stepping-bits to be output
+	axes_signals_t dir_outbits;
+	#ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+	uint32_t steps[N_AXIS];
+	#endif
+	#ifdef VARIABLE_SPINDLE
+	uint32_t spindle_pwm;
+	#endif
+	uint16_t step_count;       // Steps remaining in line segment motion
+	uint8_t exec_block_index; // Tracks the current st_block index. Change indicates new block.
+	st_block_t *exec_block;   // Pointer to the block data for the segment being executed
+	segment_t *exec_segment;  // Pointer to the segment being executed
 } stepper_t;
 
 static stepper_t st;
@@ -322,12 +333,22 @@ void stepper_driver_interrupt_handler (void)
             st.step_count = st.exec_segment->n_step; // NOTE: Can sometimes be zero when moving slow.
             // If the new segment starts a new planner block, initialize stepper variables and counters.
             // NOTE: When the segment data index changes, this indicates a new planner block.
-            if ( st.exec_block_index != st.exec_segment->st_block_index ) {
+            if (st.exec_block_index != st.exec_segment->st_block_index) {
                 st.exec_block_index = st.exec_segment->st_block_index;
                 st.exec_block = &st_block_buffer[st.exec_block_index];
 
                 // Initialize Bresenham line and distance counters
-                st.counter_x = st.counter_y = st.counter_z = (st.exec_block->step_event_count >> 1);
+                st.counter_x = st.counter_y = st.counter_z
+				#ifdef A_AXIS
+				  = st.counter_a
+				#endif
+				#ifdef B_AXIS
+				  = st.counter_b
+				#endif
+				#ifdef C_AXIS
+				  = st.counter_c
+				#endif
+				  = (st.exec_block->step_event_count >> 1);
             }
             st.dir_outbits = st.exec_block->direction_bits;
 
@@ -336,7 +357,16 @@ void stepper_driver_interrupt_handler (void)
             st.steps[X_AXIS] = st.exec_block->steps[X_AXIS] >> st.exec_segment->amass_level;
             st.steps[Y_AXIS] = st.exec_block->steps[Y_AXIS] >> st.exec_segment->amass_level;
             st.steps[Z_AXIS] = st.exec_block->steps[Z_AXIS] >> st.exec_segment->amass_level;
-          #endif
+		   #ifdef A_AXIS
+            st.steps[A_AXIS] = st.exec_block->steps[A_AXIS] >> st.exec_segment->amass_level;
+		   #endif
+		   #ifdef B_AXIS
+            st.steps[B_AXIS] = st.exec_block->steps[B_AXIS] >> st.exec_segment->amass_level;
+		   #endif
+		   #ifdef C_AXIS
+            st.steps[C_AXIS] = st.exec_block->steps[C_AXIS] >> st.exec_segment->amass_level;
+		   #endif
+         #endif
 
           #ifdef VARIABLE_SPINDLE
             // Set real-time spindle output as segment is loaded, just prior to the first step.
@@ -368,6 +398,7 @@ void stepper_driver_interrupt_handler (void)
     st.step_outbits.value = 0;
 
     // Execute step displacement profile by Bresenham line algorithm
+
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_x += st.steps[X_AXIS];
   #else
@@ -379,6 +410,7 @@ void stepper_driver_interrupt_handler (void)
         st.counter_x -= st.exec_block->step_event_count;
         sys_position[X_AXIS] = sys_position[X_AXIS] + (st.exec_block->direction_bits.x ? -1 : 1);
     }
+
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_y += st.steps[Y_AXIS];
   #else
@@ -389,6 +421,7 @@ void stepper_driver_interrupt_handler (void)
         st.counter_y -= st.exec_block->step_event_count;
         sys_position[Y_AXIS] = sys_position[Y_AXIS] + (st.exec_block->direction_bits.y ? -1 : 1);
     }
+
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_z += st.steps[Z_AXIS];
   #else
@@ -399,6 +432,45 @@ void stepper_driver_interrupt_handler (void)
         st.counter_z -= st.exec_block->step_event_count;
         sys_position[Z_AXIS] = sys_position[Z_AXIS] + (st.exec_block->direction_bits.z ? -1 : 1);
     }
+
+  #ifdef A_AXIS
+	#ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+	  st.counter_a += st.steps[A_AXIS];
+	#else
+	  st.counter_a += st.exec_block->steps[A_AXIS];
+	#endif
+	  if (st.counter_a > st.exec_block->step_event_count) {
+		  st.step_outbits.a = on;
+		  st.counter_a -= st.exec_block->step_event_count;
+		  sys_position[A_AXIS] = sys_position[A_AXIS] + (st.exec_block->direction_bits.a ? -1 : 1);
+	  }
+  #endif
+
+  #ifdef B_AXIS
+	#ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+	  st.counter_b += st.steps[B_AXIS];
+	#else
+	  st.counter_b += st.exec_block->steps[B_AXIS];
+	#endif
+	  if (st.counter_b > st.exec_block->step_event_count) {
+		  st.step_outbits.b = on;
+		  st.counter_b -= st.exec_block->step_event_count;
+		  sys_position[B_AXIS] = sys_position[B_AXIS] + (st.exec_block->direction_bits.b ? -1 : 1);
+	  }
+  #endif
+
+  #ifdef C_AXIS
+	#ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+	  st.counter_c += st.steps[C_AXIS];
+	#else
+	  st.counter_c += st.exec_block->steps[C_AXIS];
+	#endif
+	  if (st.counter_c > st.exec_block->step_event_count) {
+		  st.step_outbits.c = on;
+		  st.counter_c -= st.exec_block->step_event_count;
+		  sys_position[C_AXIS] = sys_position[C_AXIS] + (st.exec_block->direction_bits.c ? -1 : 1);
+	  }
+  #endif
 
     // During a homing cycle, lock out and prevent desired axes from moving.
     if (sys.state == STATE_HOMING)

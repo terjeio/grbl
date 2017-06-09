@@ -167,6 +167,7 @@ typedef struct {
     axes_signals_t limit_disable_pullup_mask;
     axes_signals_t step_invert_mask;
     axes_signals_t dir_invert_mask;
+//    axes_signals_t stepper_deenergize_mask;
     coolant_state_t coolant_invert_mask;
     spindle_state_t spindle_invert_mask;
     uint8_t homing_dir_mask;

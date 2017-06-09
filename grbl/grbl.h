@@ -22,8 +22,8 @@
 #define grbl_h
 
 // Grbl versioning system
-#define GRBL_VERSION "1.1f"
-#define GRBL_VERSION_BUILD "20170422"
+#define GRBL_VERSION "1.1f(ARM)"
+#define GRBL_VERSION_BUILD "20170608"
 
 // Define standard libraries used by Grbl.
 #include <math.h>
@@ -40,7 +40,6 @@
 #include "hal.h"
 #include "system.h"
 #include "defaults.h"
-#include "cpu_map.h"
 #include "coolant_control.h"
 #include "eeprom.h"
 #include "eeprom_emulate.h"
