@@ -41,7 +41,7 @@ typedef union {
         uint8_t recalculate        :1,
                 hold_partial_block :1,
                 parking            :1,
-                decel_ovveride     :1,
+                decel_override     :1,
 				unassigned         :4;
     };
 } prep_flags_t;
@@ -523,7 +523,7 @@ void st_update_plan_block_parameters ()
 {
     if (pl_block != NULL) { // Ignore if at start of a new block.
         prep.recalculate_flags.recalculate = on;
-        pl_block->entry_speed_sqr = prep.current_speed*prep.current_speed; // Update entry speed.
+        pl_block->entry_speed_sqr = prep.current_speed * prep.current_speed; // Update entry speed.
         pl_block = NULL; // Flag st_prep_segment() to load and check active velocity profile.
     }
 }
@@ -652,18 +652,18 @@ void st_prep_buffer()
                 prep.req_mm_increment = REQ_MM_INCREMENT_SCALAR / prep.step_per_mm;
                 prep.dt_remainder = 0.0f; // Reset for new segment block
 
-                if (sys.step_control.execute_hold || prep.recalculate_flags.decel_ovveride) {
+                if (sys.step_control.execute_hold || prep.recalculate_flags.decel_override) {
                     // New block loaded mid-hold. Override planner block entry speed to enforce deceleration.
                     prep.current_speed = prep.exit_speed;
                     pl_block->entry_speed_sqr = prep.exit_speed * prep.exit_speed;
-                    prep.recalculate_flags.decel_ovveride = off;
+                    prep.recalculate_flags.decel_override = off;
                 } else
                     prep.current_speed = sqrtf(pl_block->entry_speed_sqr);
 
               #ifdef VARIABLE_SPINDLE
                 // Setup laser mode variables. PWM rate adjusted motions will always complete a motion with the
                 // spindle off.
-                if ((st_prep_block->is_pwm_rate_adjusted = pl_block->condition.spindle.dynamic))
+                if ((st_prep_block->is_pwm_rate_adjusted = pl_block->condition.is_pwm_rate_adjusted))
                     // Pre-compute inverse programmed rate to speed up PWM updating per step segment.
                     prep.inv_rate = 1.0f; //1.0/pl_block->programmed_rate; TODO: add config for PPI mode
               #endif
@@ -720,7 +720,7 @@ void st_prep_buffer()
 
                         // Compute override block exit speed since it doesn't match the planner exit speed.
                         prep.exit_speed = sqrtf(pl_block->entry_speed_sqr - 2.0f * pl_block->acceleration * pl_block->millimeters);
-                        prep.recalculate_flags.decel_ovveride = on; // Flag to load next block as deceleration override.
+                        prep.recalculate_flags.decel_override = on; // Flag to load next block as deceleration override.
 
                         // TODO: Determine correct handling of parameters in deceleration-only.
                         // Can be tricky since entry speed will be current speed, as in feed holds.
@@ -746,8 +746,7 @@ void st_prep_buffer()
                                 prep.accelerate_until -= inv_2_accel * (nominal_speed_sqr - pl_block->entry_speed_sqr);
                             }
                         } else { // Triangle type
-                            prep.accelerate_until = intersect_distance;
-                            prep.decelerate_after = intersect_distance;
+                            prep.accelerate_until = prep.decelerate_after = intersect_distance;
                             prep.maximum_speed = sqrtf(2.0f * pl_block->acceleration * intersect_distance + exit_speed_sqr);
                         }
                     } else { // Deceleration-only type

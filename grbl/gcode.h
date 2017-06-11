@@ -315,6 +315,7 @@ typedef struct {
     int32_t line_number;          // Last line number sent
     uint8_t tool;                 // Tracks tool number. NOT USED.
     bool laser_ppi_mode;
+    bool is_pwm_rate_adjusted;
 } parser_state_t;
 
 extern parser_state_t gc_state;

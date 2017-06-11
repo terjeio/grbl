@@ -32,7 +32,7 @@ typedef union {
 				reserved4 :1,
 				reserved5 :1,
 				reserved6 :1,
-				dynamic   :1;
+				reserved7 :1;
     };
 } spindle_state_t;
 

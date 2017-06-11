@@ -26,9 +26,9 @@
 // The number of linear motions that can be in the plan at any give time
 #ifndef BLOCK_BUFFER_SIZE
   #ifdef USE_LINE_NUMBERS
-    #define BLOCK_BUFFER_SIZE 63
+    #define BLOCK_BUFFER_SIZE 15
   #else
-    #define BLOCK_BUFFER_SIZE 64
+    #define BLOCK_BUFFER_SIZE 16
   #endif
 #endif
 
@@ -39,7 +39,8 @@ typedef union {
                 system_motion    :1,
                 no_feed_override :1,
                 inverse_time     :1,
-                unassigned       :4;
+				is_pwm_rate_adjusted :1,
+                unassigned       :3;
         spindle_state_t spindle;
         coolant_state_t coolant;
     };
@@ -77,6 +78,7 @@ typedef struct {
   #ifdef VARIABLE_SPINDLE
     // Stored spindle speed data used by spindle overrides and resuming methods.
     float spindle_speed;    // Block spindle speed. Copied from pl_line_data.
+    bool is_pwm_rate_adjusted;
   #endif
 } plan_block_t;
 

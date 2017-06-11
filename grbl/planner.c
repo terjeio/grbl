@@ -231,7 +231,7 @@ plan_block_t *plan_get_system_motion_block ()
 
 
 // Returns address of first planner block, if available. Called by various main program functions.
-inline plan_block_t *plan_get_current_block ()
+plan_block_t *plan_get_current_block ()
 {
     return block_buffer_head == block_buffer_tail ? NULL : &block_buffer[block_buffer_tail];
 }
@@ -245,7 +245,7 @@ inline float plan_get_exec_block_exit_speed_sqr ()
 
 
 // Returns the availability status of the block ring buffer. True, if full.
-inline bool plan_check_full_buffer ()
+bool plan_check_full_buffer ()
 {
     return block_buffer_tail == next_buffer_head;
 }
@@ -271,12 +271,13 @@ float plan_compute_profile_nominal_speed (plan_block_t *block)
 
 // Computes and updates the max entry speed (sqr) of the block, based on the minimum of the junction's
 // previous and current nominal speeds and max junction speed.
-inline static void plan_compute_profile_parameters(plan_block_t *block, float nominal_speed, float prev_nominal_speed)
+inline static float plan_compute_profile_parameters (plan_block_t *block, float nominal_speed, float prev_nominal_speed)
 {
   // Compute the junction maximum entry based on the minimum of the junction speed and neighboring nominal speeds.
     block->max_entry_speed_sqr = nominal_speed > prev_nominal_speed ? (prev_nominal_speed * prev_nominal_speed) : (nominal_speed * nominal_speed);
     if (block->max_entry_speed_sqr > block->max_junction_speed_sqr)
         block->max_entry_speed_sqr = block->max_junction_speed_sqr;
+    return nominal_speed;
 }
 
 // Re-calculates buffered motions profile parameters upon a motion-based override change.
@@ -284,13 +285,11 @@ void plan_update_velocity_profile_parameters ()
 {
     uint32_t block_index = block_buffer_tail;
     plan_block_t *block;
-    float nominal_speed, prev_nominal_speed = SOME_LARGE_VALUE; // Set high for first block nominal speed calculation.
+    float prev_nominal_speed = SOME_LARGE_VALUE; // Set high for first block nominal speed calculation.
 
     while (block_index != block_buffer_head) {
         block = &block_buffer[block_index];
-        nominal_speed = plan_compute_profile_nominal_speed(block);
-        plan_compute_profile_parameters(block, nominal_speed, prev_nominal_speed);
-        prev_nominal_speed = nominal_speed;
+        prev_nominal_speed = plan_compute_profile_parameters(block, plan_compute_profile_nominal_speed(block), prev_nominal_speed);
         block_index = plan_next_block_index(block_index);
     }
     pl.previous_nominal_speed = prev_nominal_speed; // Update prev nominal speed for next incoming block.
@@ -462,9 +461,8 @@ bool plan_buffer_line (float *target, plan_line_data_t *pl_data)
 
     // Block system motion from updating this data to ensure next g-code motion is computed correctly.
     if (!block->condition.system_motion) {
-        float nominal_speed = plan_compute_profile_nominal_speed(block);
-        plan_compute_profile_parameters(block, nominal_speed, pl.previous_nominal_speed);
-        pl.previous_nominal_speed = nominal_speed;
+
+        pl.previous_nominal_speed = plan_compute_profile_parameters(block, plan_compute_profile_nominal_speed(block), pl.previous_nominal_speed);
 
         // Update previous path unit_vector and planner position.
         memcpy(pl.previous_unit_vec, unit_vec, sizeof(unit_vec)); // pl.previous_unit_vec[] = unit_vec[]

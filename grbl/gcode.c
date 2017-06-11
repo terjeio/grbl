@@ -1074,8 +1074,7 @@ status_code_t gc_execute_line(char *line)
 
     // Initialize planner data struct for motion blocks.
     plan_line_data_t plan_data;
-    plan_line_data_t *pl_data = &plan_data;
-    memset(pl_data, 0, sizeof(plan_line_data_t)); // Zero pl_data struct
+    memset(&plan_data, 0, sizeof(plan_line_data_t)); // Zero plan_data struct
 
     // Intercept jog commands and complete error checking for valid jog commands and execute.
     // NOTE: G-code parser state is not updated, except the position to ensure sequential jog
@@ -1092,9 +1091,10 @@ status_code_t gc_execute_line(char *line)
             FAIL(Status_InvalidJogCommand);
 
         // Initialize planner data to current spindle and coolant modal state.
-        pl_data->spindle_speed = gc_state.spindle_speed;
+        plan_data.spindle_speed = gc_state.spindle_speed;
         plan_data.condition.spindle = gc_state.modal.spindle;
         plan_data.condition.coolant = gc_state.modal.coolant;
+        plan_data.condition.is_pwm_rate_adjusted = gc_state.is_pwm_rate_adjusted;
 
         if ((status_code_t)(int_value = (uint8_t)jog_execute(&plan_data, &gc_block)) == Status_OK)
             memcpy(gc_state.position, gc_block.values.xyz, sizeof(gc_block.values.xyz));
@@ -1123,7 +1123,7 @@ status_code_t gc_execute_line(char *line)
                 gc_parser_flags.laser_force_sync = on;
         }
 
-        gc_state.modal.spindle.dynamic = gc_state.modal.spindle.ccw && !gc_parser_flags.laser_disable && !gc_state.laser_ppi_mode;
+        gc_state.is_pwm_rate_adjusted = gc_state.modal.spindle.ccw && !gc_parser_flags.laser_disable && !gc_state.laser_ppi_mode;
 
     }
 
@@ -1131,7 +1131,7 @@ status_code_t gc_execute_line(char *line)
     // NOTE: If no line number is present, the value is zero.
     gc_state.line_number = gc_block.values.n;
     #ifdef USE_LINE_NUMBERS
-    pl_data->line_number = gc_state.line_number; // Record data for planner use.
+    plan_data.line_number = gc_state.line_number; // Record data for planner use.
     #endif
 
     // [1. Comments feedback ]:  NOT SUPPORTED
@@ -1139,11 +1139,11 @@ status_code_t gc_execute_line(char *line)
     // [2. Set feed rate mode ]:
     gc_state.modal.feed_mode = gc_block.modal.feed_mode;
     if (gc_state.modal.feed_mode == FeedMode_InverseTime)
-        pl_data->condition.inverse_time = on; // Set condition flag for planner use.
+        plan_data.condition.inverse_time = on; // Set condition flag for planner use.
 
     // [3. Set feed rate ]:
     gc_state.feed_rate = gc_block.values.f; // Always copy this value. See feed rate error-checking.
-    pl_data->feed_rate = gc_state.feed_rate; // Record data for planner use.
+    plan_data.feed_rate = gc_state.feed_rate; // Record data for planner use.
 
     // [4. Set spindle speed ]:
     if ((gc_state.spindle_speed != gc_block.values.s) || gc_parser_flags.laser_force_sync) {
@@ -1160,8 +1160,8 @@ status_code_t gc_execute_line(char *line)
 
     // NOTE: Pass zero spindle speed for all restricted laser motions.
     if (!gc_parser_flags.laser_disable)
-        pl_data->spindle_speed = gc_state.spindle_speed; // Record data for planner use.
-    // else { pl_data->spindle_speed = 0.0; } // Initialized as zero already.
+        plan_data.spindle_speed = gc_state.spindle_speed; // Record data for planner use.
+    // else { plan_data.spindle_speed = 0.0; } // Initialized as zero already.
 
     // [5. Select tool ]: NOT SUPPORTED. Only tracks tool value.
     gc_state.tool = gc_block.values.t;
@@ -1171,13 +1171,14 @@ status_code_t gc_execute_line(char *line)
     // [7. Spindle control ]:
     if (gc_state.modal.spindle.value != gc_block.modal.spindle.value) {
         // Update spindle control and apply spindle speed when enabling it in this block.
-        // NOTE: All spindle state changes are synced, even in laser mode. Also, pl_data,
+        // NOTE: All spindle state changes are synced, even in laser mode. Also, plan_data,
         // rather than gc_state, is used to manage laser state for non-laser motions.
-        spindle_sync(gc_block.modal.spindle, pl_data->spindle_speed);
+        spindle_sync(gc_block.modal.spindle, plan_data.spindle_speed);
         gc_state.modal.spindle = gc_block.modal.spindle;
     }
 
-    pl_data->condition.spindle = gc_state.modal.spindle; // Set condition flag for planner use.
+    plan_data.condition.spindle = gc_state.modal.spindle; // Set condition flag for planner use.
+    plan_data.condition.is_pwm_rate_adjusted = gc_state.is_pwm_rate_adjusted;
 
     // [8. Coolant control ]:
     if (gc_state.modal.coolant.value != gc_block.modal.coolant.value) {
@@ -1187,7 +1188,7 @@ status_code_t gc_execute_line(char *line)
         gc_state.modal.coolant = gc_block.modal.coolant;
     }
 
-    pl_data->condition.coolant = gc_state.modal.coolant; // Set condition flag for planner use.
+    plan_data.condition.coolant = gc_state.modal.coolant; // Set condition flag for planner use.
 
     // [9. Override control ]: NOT SUPPORTED. Always enabled. Except for a Grbl-only parking control.
   #ifdef ENABLE_PARKING_OVERRIDE_CONTROL
@@ -1228,7 +1229,7 @@ status_code_t gc_execute_line(char *line)
     // [15. Coordinate system selection ]:
     if (gc_state.modal.coord_select != gc_block.modal.coord_select) {
         gc_state.modal.coord_select = gc_block.modal.coord_select;
-        memcpy(gc_state.coord_system,block_coord_system,N_AXIS*sizeof(float));
+        memcpy(gc_state.coord_system, block_coord_system, N_AXIS * sizeof(float));
         system_flag_wco_change();
     }
 
@@ -1256,10 +1257,10 @@ status_code_t gc_execute_line(char *line)
         case NonModal_GoHome_1:
             // Move to intermediate position before going home. Obeys current coordinate system and offsets
             // and absolute and incremental modes.
-            pl_data->condition.rapid_motion = on; // Set rapid motion condition flag.
+            plan_data.condition.rapid_motion = on; // Set rapid motion condition flag.
             if (axis_command)
-                mc_line(gc_block.values.xyz, pl_data);
-            mc_line(gc_block.values.coord_data, pl_data);
+                mc_line(gc_block.values.xyz, &plan_data);
+            mc_line(gc_block.values.coord_data, &plan_data);
             memcpy(gc_state.position, gc_block.values.coord_data, N_AXIS * sizeof(float));
             break;
 
@@ -1297,20 +1298,20 @@ status_code_t gc_execute_line(char *line)
             pos_update_t gc_update_pos = GCUpdatePos_Target;
 
             if (gc_state.modal.motion == MotionMode_Linear)
-                mc_line(gc_block.values.xyz, pl_data);
+                mc_line(gc_block.values.xyz, &plan_data);
             else if (gc_state.modal.motion == MotionMode_Seek) {
-                pl_data->condition.rapid_motion = on; // Set rapid motion condition flag.
-                mc_line(gc_block.values.xyz, pl_data);
+                plan_data.condition.rapid_motion = on; // Set rapid motion condition flag.
+                mc_line(gc_block.values.xyz, &plan_data);
             } else if ((gc_state.modal.motion == MotionMode_CwArc) || (gc_state.modal.motion == MotionMode_CcwArc)) {
-                mc_arc(gc_block.values.xyz, pl_data, gc_state.position, gc_block.values.ijk, gc_block.values.r,
+                mc_arc(gc_block.values.xyz, &plan_data, gc_state.position, gc_block.values.ijk, gc_block.values.r,
                         axis_0, axis_1, axis_linear, gc_parser_flags.arc_is_clockwise);
             } else {
                 // NOTE: gc_block.values.xyz is returned from mc_probe_cycle with the updated position value. So
                 // upon a successful probing cycle, the machine position and the returned value should be the same.
               #ifndef ALLOW_FEED_OVERRIDE_DURING_PROBE_CYCLES
-                pl_data->condition.no_feed_override = on;
+                plan_data.condition.no_feed_override = on;
               #endif
-                gc_update_pos = (pos_update_t)mc_probe_cycle(gc_block.values.xyz, pl_data, gc_parser_flags);
+                gc_update_pos = (pos_update_t)mc_probe_cycle(gc_block.values.xyz, &plan_data, gc_parser_flags);
             }
 
             // As far as the parser is concerned, the position is now == target. In reality the

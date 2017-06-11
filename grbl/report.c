@@ -40,8 +40,7 @@ inline static void report_util_line_feed () {
 }
 
 inline static void report_util_feedback_line_feed () {
-    serial_write(']');
-    report_util_line_feed();
+	serial_write_string("]\r\n");
 }
 
 inline static void report_util_gcode_modes_G () {
@@ -495,6 +494,8 @@ void report_build_info(char *line)
   print_uint8_base10(BLOCK_BUFFER_SIZE - 1);
   serial_write(',');
   print_uint32_base10(SERIAL_RX_BUFFER_SIZE);
+  serial_write(',');
+  print_uint8_base10(N_AXIS);
 
   report_util_feedback_line_feed();
 }
