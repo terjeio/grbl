@@ -1,3 +1,31 @@
+## Changes coming: ##
+
+Support for switches: M49, M50, M51, M53.
+
+Configurable number of coordinate systems, default increased to 9: G59.1, G59.2, G59.3.
+
+Configurable size tool table, persistent storage TBC. M6 needs to be implemented in driver layer.
+
+Tool configuration: G10 L1, G10 L10, G10 L11.
+
+Canned cycles: G73, G81, G82, G83, G85, G86, G89, G98, G99.
+
+Some compile time options removed, some replaced with configuration settings.
+
+Default for input signals switches changed to normally-closed \(NC\), individually reconfigurable.
+
+Driver for TI MSP430F5529 \(16bit - just because it could be done\).
+
+Driver for TI MSP432 \(pure CMSIS - may use DriverLib later for USB-support\).
+
+Driver for LPC176x, TBC.
+
+Initial coding completed for all items not marked TBC, testing remains. \(TBC - To Be Completed\)
+
+Also, 3-axis CNC BoosterPack for some TI LaunchPads - featuring opto-coupled I/O and Polulu-style drivers.
+
+Finally - I am thinking about making a driver for a Raspberry Pi - bare metal...
+
 ![GitHub Logo](https://github.com/gnea/gnea-Media/blob/master/Grbl%20Logo/Grbl%20Logo%20250px.png?raw=true)
 
 
