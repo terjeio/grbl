@@ -10,13 +10,13 @@ Reference HAL implementations:
 
 * TI MSP432 - a complete CMSIS \(bare metal\) driver with no extras.
 
-* TI Tiva C (TM4C123) - a combined driverlib and bare metal driver with I2C keyboard for jogging etc., M-code extensions and example ATC \(Automatic Tool Changer\) code.
+* TI Tiva C (TM4C123) - a combined driverlib and bare metal driver with I2C keyboard for jogging etc., M-code extensions, example ATC \(Automatic Tool Changer\) code, ramped spindle PWM, driver specific settings stored in EEPROM and more.
 
 Other implementations:
 
-* Cypress PSoC - some parts of the code (typically signal inversions) are implemented in UDMs \("hardware"\).
+* Cypress PSoC - some parts of the code (typically signal inversions) are implemented in UDBs \("hardware"\).
 
-* NXP LPC 1769 - LPC Expesso board. Note: Smoothieboard is not well suited for grbl as there is no interrupt capable GPIO pins available for control- and limit-signals. TBC - compiles in GNU MCU Eclipse, but I do not yet have hardware available for testing.
+* NXP LPC 1769 - LPC Expesso board. Note: Smoothieboard is not well suited for grbl as there is no interrupt capable GPIO pins available for control- and limit signals. TBC - compiles in GNU MCU Eclipse, but I do not yet have hardware available for testing.
 
 * TI MSP430F5529 - a 16 bit processor with sufficient RAM/flash, just because it could be done...
 
@@ -93,7 +93,7 @@ typedef struct HAL {
     void (*show_message)(const char *msg);
     bool (*driver_setting)(uint_fast16_t setting, float value);
     void (*driver_settings_restore)(uint8_t restore_flag);
-    bool (*driver_settings_report)(bool axis_settings);
+    void (*driver_settings_report)(bool axis_settings);
 
     eeprom_io_t eeprom;
 
@@ -109,7 +109,7 @@ typedef struct HAL {
 } HAL;
 ```
 
-Note: the HAL struct is cleared on startup. All values defaults to 0 \(or null\).
+Note: the HAL struct is cleared on startup. All values defaults to 0 \(equal to null or false\).
 
 #### The first part of the HAL struct contains some basic information about the HAL implementation.
 
@@ -149,10 +149,44 @@ Returns false if fails. Neg. Compatibility check...
 void (*limits_enable)(bool on);
 ```
 Enable/disable limit switches interrupt.
+
+```c
+typedef union {
+    uint8_t mask;
+    uint8_t value;
+    struct {
+        uint8_t x :1,
+                y :1,
+                z :1,
+                a :1,
+                b :1,
+                c :1;
+    };
+} axes_signals_t;
+```
+Axes signals union, used for step, dir, stepper enable and limits signals.
 ```c
 axes_signals_t (*limits_get_state)(void);
 ```
-Returns limit switches status in a axes_signals_t struct.
+Returns limit switches status in a axes_signals_t type.
+
+```c
+typedef union {
+    uint8_t value;
+    uint8_t mask;
+    struct {
+        uint8_t flood     :1,
+                mist      :1,
+                reserved2 :1,
+                reserved3 :1,
+                reserved4 :1,
+                reserved5 :1,
+                reserved6 :1,
+                reserved7 :1;
+    };
+} coolant_state_t;
+```
+Coolant state union.
 ```c
 void (*coolant_set_state)(coolant_state_t mode);
 ```
@@ -164,7 +198,7 @@ Get coolant state
 ```c
 void (*delay_milliseconds)(uint32_t ms, void (*callback)(void));
 ```
-Delay for ms number of milliseconds. A pointer to an optional callback function may be supplied, this will be called on delay timeout and the delay code returns immediately. Currently used by disable steppers function to avoid a long delay when the processor is in interrupt code.
+Delay for ms number of milliseconds. A pointer to an optional callback function may be supplied, this will be called on delay timeout and if provided the delay code returns immediately. Currently used by disable steppers function to avoid a long delay when the processor is in interrupt code.
 ```c
 bool (*probe_get_state)(void);
 ```
@@ -173,6 +207,25 @@ Returns probe state.
 void (*probe_configure_invert_mask)(bool is_probe_away);
 ```
 Sets probe signal inversion.
+
+```c
+typedef union {
+    uint8_t value;
+    uint8_t mask;
+    struct {
+        uint8_t on        :1,
+                ccw       :1,
+                at_speed  :1,
+                reserved3 :1,
+                reserved4 :1,
+                reserved5 :1,
+                reserved6 :1,
+                reserved7 :1;
+    };
+} spindle_state_t;
+```
+Spindle state union definition. at_speed is never inverted, true when spindle is at programmed speed.
+
 ```c
 void (*spindle_set_status)(spindle_state_t state, float rpm, uint8_t spindle_speed_ovr);
 ```
@@ -189,6 +242,24 @@ Sets spindle speed.
 uint32_t (*spindle_compute_pwm_value)(float rpm, uint8_t spindle_speed_ovr);
 ```
 Returns spindle PWM value computed from given rpm and speed override.
+
+```c
+typedef union {
+    uint8_t value;
+    uint8_t mask;
+    struct {
+        uint8_t reset               :1,
+                feed_hold           :1,
+                cycle_start         :1,
+                safety_door_ajar    :1,
+                block_delete        :1,
+                stop_disable        :1, // M1
+                safety_door_pending :1,
+                deasserted          :1; // this flag is set if signals are deasserted. Note: do NOT pass on event to Grbl control_interrupt_handler if set.
+    };
+} control_signals_t;
+```
+Control signals union.
 ```c
 control_signals_t (*system_control_get_state)(void);
 ```
@@ -254,7 +325,7 @@ Set bits atomically, disable master interrupt for reliable read-modify-write.
 uint8_t (*clear_bits_atomic)(volatile uint8_t *value, uint8_t bits);
 ```
 Clear bits atomically, disable master interrupt for reliable read-modify-write.
-Returns previous value. 
+Returns current value. 
 ```c
 uint8_t (*set_value_atomic)(volatile uint8_t *value, uint8_t bits);
 ```
@@ -351,7 +422,7 @@ Report driver specific settings. Called two times on a settings report.
 First at the end of non-axis settings, secondly after standard axis settings has been reported.
 
 Persistent storage of parameter settings. Preferably this can be done to EEPROM but flash may also be employed. If neither is available default settings may be used and overridden.
-The default is to enable EEPROM emulation, even if EEPROM storage is available, as this buffers any changes and writes them to peristent storage only when grbl is in _idle_ mode.
+The default is to enable EEPROM emulation, even if EEPROM storage is available, as this buffers any changes and writes them to peristent storage only when grbl is in _idle_ mode and not running a file.
 ```c
 typedef enum {
     EEPROM_None = 0,
@@ -360,7 +431,13 @@ typedef enum {
 } eeprom_type;
 
 typedef struct {
+    uint16_t address;
+    uint16_t size;
+} eeprom_driver_area_t;
+
+typedef struct {
     eeprom_type type;
+    eeprom_driver_area_t driver_area;
     uint8_t (*get_byte)(uint32_t addr);
     void (*put_byte)(uint32_t addr, uint8_t new_value);
     void (*memcpy_to_with_checksum)(uint32_t destination, uint8_t *source, uint32_t size);
@@ -400,6 +477,22 @@ bool (*memcpy_to_flash)(uint8_t *source);
 ```
 Optional, used for writing the whole emulated "EEPROM" data to flash memory.
 
+If driver specific settings are handled by the driver a "dirty" flag may be employed to handle write to persistent storage in the same manner as the standard settings. This requires EEPROM type set to emulated and the address (offset) and size of the driver specific data must be specified in the eeprom struct (eeprom.driver_area). Note that the size is ex. the checksum byte that is added by the standard code.
+
+```c
+typedef struct {
+    bool is_dirty;
+    bool global_settings;
+    bool build_info;
+    bool driver_settings;
+    uint8_t startup_lines;
+    uint16_t coord_data;
+#ifdef N_TOOLS
+    uint16_t tool_data;
+#endif
+} settings_dirty_t;
+```
+ 
 #### Driver capabilities
 
 These bits are used to "negotiate" which features are required/enabled.
@@ -421,11 +514,11 @@ typedef union {
                  amass_level             :2, // 0...3
                  stepper_current_control :1,
                  program_stop            :1,
-                 unused13                :1,
+                 spindle_at_speed        :1,
                  unused14                :1,
                  unused15                :1;
     };
 } driver_cap_t;
 ```
 
-2018-01-17
+2018-01-30
