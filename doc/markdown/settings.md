@@ -40,6 +40,12 @@ $10=1
 $11=0.010
 $12=0.002
 $13=0
+$14=0
+$15=0
+$16=0
+$17=0
+$18=0
+$19=0
 $20=0
 $21=0
 $22=1
@@ -48,9 +54,26 @@ $24=25.000
 $25=500.000
 $26=250
 $27=1.000
+$28=0.1
+$29=0
 $30=1000.
 $31=0.
 $32=0
+$33=5000
+$34=0.
+$35=0.
+$36=100.
+$38=100
+$39=1.
+$40=0.
+$41=100.
+$43=1
+$44=0
+$45=0
+$46=0
+$47=0
+$48=0
+$49=0
 $100=250.000
 $101=250.000
 $102=250.000
@@ -131,7 +154,6 @@ By default, the probe pin is held normally-high with the Arduino's internal pull
 
 NOTE: If you invert your probe pin, you will need an external pull-down resistor wired in to the probe pin to prevent overloading it with current and frying it.
 
-
 #### $10 - Status report, mask
 
 This setting determines what Grbl real-time data it reports back to the user when a '?' status report is sent. This data includes current run state, real-time position, real-time feed rate, pin states, current override values, buffer states, and the g-code line number currently executing (if enabled through compile-time options).
@@ -165,6 +187,63 @@ For the curious, arc tolerance is defined as the maximum perpendicular distance 
 #### $13 - Report inches, boolean
 
 Grbl has a real-time positioning reporting feature to provide a user feedback on where the machine is exactly at that time, as well as, parameters for coordinate offsets and probing. By default, it is set to report in mm, but by sending a `$13=1` command, you send this boolean flag to true and these reporting features will now report in inches. `$13=0` to set back to mm.
+
+#### $14 - Limit pins invert, mask
+
+By default, Grbl assumes your homing limit signals are active high, mean. If your machine has a limit switch in the negative direction, the homing direction mask can invert the axes' direction. It works just like the step port invert and direction port invert masks, where all you have to do is send the value in the table to indicate what axes you want to invert and search for in the opposite direction.
+
+#### $15 - Coolant pins invert, mask
+
+By default, Grbl switches flood and mist on by a "high" level on the pin. To reverse this set this mask.
+
+| Setting Value | Mask |Invert Flood | Invert Mist |
+|:-------------:|:----:|:-----------:|:-----------:|
+| 0 | 00000000 |N | N |
+| 1 | 00000001 |Y | N |
+| 2 | 00000010 |N | Y |
+| 3 | 00000011 |Y | Y |
+
+#### $16 - Spindle pins invert, mask
+
+By default, Grbl switches the spindle on by a "high" level on the pin. To reverse this set this mask.
+
+| Setting Value | Mask |Invert spindle on | Invert spindle direction \(CCW\)|
+|:-------------:|:----:|:----------------:|:-------------------------------:|
+| 0 | 00000000 |N | N |
+| 1 | 00000001 |Y | N |
+| 2 | 00000010 |N | Y |
+| 3 | 00000011 |Y | Y |
+
+#### $17 - Control pins pullup disable, mask
+
+By default, Grbl uses a pullup resistor. Set this mask to change it to a pulldown.
+
+| Setting Value | Mask | Reset | Feed Hold | Cycle Start | Safety Door |
+|:-------------:|:----:|:-----:|:---------:|:-----------:|:-----------:|
+| 0  | 00000000 |N | N | N | N |
+| 1  | 00000001 |Y | N | N | N |
+| 2  | 00000010 |N | Y | N | N |
+| 3  | 00000011 |Y | Y | N | N |
+| 4  | 00000100 |N | N | Y | N |
+| 5  | 00000101 |Y | N | Y | N |
+| 6  | 00000110 |N | Y | Y | N |
+| 7  | 00000111 |Y | Y | Y | N |
+| 8  | 00001000 |N | N | N | Y |
+| 9  | 00001001 |Y | N | N | Y |
+| 10 | 00001010 |N | Y | N | Y |
+| 11 | 00001011 |Y | Y | N | Y |
+| 12 | 00001100 |N | N | Y | Y |
+| 13 | 00001101 |Y | N | Y | Y |
+| 14 | 00001110 |N | Y | Y | Y |
+| 15 | 00001111 |Y | Y | Y | Y |
+
+#### $18 - Limit pins pullup disable, mask
+
+By default, Grbl uses a pullup resistor. Set this mask to change it to a pulldown.
+
+#### $19 - Probe pin pullup disable, boolean
+
+By default, Grbl uses a pullup resistor. Set to change it to a pulldown.
 
 #### $20 - Soft limits, boolean
 
@@ -213,6 +292,14 @@ Whenever a switch triggers, some of them can have electrical/mechanical noise th
 
 To play nice with the hard limits feature, where homing can share the same limit switches, the homing cycle will move off all of the limit switches by this pull-off travel after it completes. In other words, it helps to prevent accidental triggering of the hard limit after a homing cycle.
 
+### $28 - G73 retract distance
+
+The distance G73 will retract between each "peck" when drilling in mm.
+
+### $29 - step pulse delay
+
+Step pulse delay from setting the direction pins in microseconds.
+
 #### $30 - Max spindle speed, RPM
 
 This sets the spindle speed for the maximum 5V PWM pin output. Higher programmed spindle RPMs are accepted by Grbl but the PWM output will not exceed the max 5V. By default, Grbl linearly relates the max-min RPMs to 5V-0.02V PWM pin output in 255 increments. When the PWM pin reads 0V, this indicates spindle disabled. Note that there are additional configuration options are available in config.h to tweak how this operates.
@@ -226,6 +313,52 @@ This sets the spindle speed for the minimum 0.02V PWM pin output (0V is disabled
 When enabled, Grbl will move continuously through consecutive `G1`, `G2`, or `G3` motion commands when programmed with a `S` spindle speed (laser power). The spindle PWM pin will be updated instantaneously through each motion without stopping. Please read the Grbl laser documentation and your laser device documentation prior to using this mode. Lasers are very dangerous. They can instantly damage your vision permanantly and cause fires. Grbl does not assume any responsibility for any issues the firmware may cause, as defined by its GPL license. 
 
 When disabled, Grbl will operate as it always has, stopping motion with every `S` spindle speed command. This is the default operation of a milling machine to allow a pause to let the spindle change speeds.
+
+### $33 - Spindle PWM frequency 
+
+Spindle PWM frequency in Hz
+
+### $34 - Spindle off
+
+### $35 - Spindle min value
+
+### $36 - Spindle max value
+
+### $37 - Stepper deenergize mask
+
+Controls which axes to disable when grbl is idle, may be useful in a mill where disabling the Z-axis could result in the tool hitting the table.
+
+### $38 - Spindle encoder pulses per revolution
+
+### $39 - Spindle PID loop P-gain
+
+### $40 - Spindle PID loop I-gain
+
+### $41 - Spindle PID loop D-gain
+
+### $43 - Homing cycles
+
+Number of repeats of each cycle to perform when homing, more may improve accuracy
+
+### $44 - Homing cycle 1
+### $45 - Homing cycle 2
+### $46 - Homing cycle 3
+### $47 - Homing cycle 4
+### $48 - Homing cycle 5
+### $49 - Homing cycle 6
+
+Mask, specifies which axes to home in each cycle
+
+#### Some settings are driver specific, I have allocated these as "standard":
+
+### $50 Jogging speed, step mode
+### $51 Jogging speed, slow mode
+### $50 Jogging speed, fast mode
+### $50 Jogging distance, step mode
+### $50 Jogging distance, slow mode
+### $50 Jogging distance, fast mode
+
+#### End driver specific settings
 
 #### $100, $101 and $102 – [X,Y,Z] steps/mm
 
